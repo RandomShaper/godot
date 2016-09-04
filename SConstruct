@@ -120,6 +120,7 @@ opts.Add('platform','Platform: '+str(platform_list)+'.',"")
 opts.Add('p','Platform (same as platform=).',"")
 opts.Add('tools','Build Tools (Including Editor): (yes/no)','yes')
 opts.Add('gdscript','Build GDSCript support: (yes/no)','yes')
+opts.Add('sljit','Enable JIT (yes/no)','yes')
 opts.Add('vorbis','Build Ogg Vorbis Support: (yes/no)','yes')
 opts.Add('opus','Build Opus Audio Format Support: (yes/no)','yes')
 opts.Add('minizip','Build Minizip Archive Support: (yes/no)','yes')
@@ -371,6 +372,8 @@ if selected_platform in platform_list:
 		env.Append(CPPFLAGS=['-D_3D_DISABLED'])
 	if (env['gdscript']=='yes'):
 		env.Append(CPPFLAGS=['-DGDSCRIPT_ENABLED'])
+	if (env['sljit']=='yes'):
+		env.Append(CPPFLAGS=['-DSLJIT_ENABLED'])
 	if (env['disable_advanced_gui']=='yes'):
 		env.Append(CPPFLAGS=['-DADVANCED_GUI_DISABLED'])
 
