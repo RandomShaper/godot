@@ -149,11 +149,11 @@ Variant GDFunction::call(GDInstance *p_instance, const Variant **p_args, int p_a
 
 	r_err.error=Variant::CallError::CALL_OK;
 
-	Variant self;
-	Variant retvalue;
-	Variant *stack = NULL;
-	Variant **call_args;
-	int defarg=0;
+	ExecState state;
+	state.instance=p_instance;
+	state.ip=0;
+	state.defarg=0;
+	state.stack=NULL;
 
 #ifdef DEBUG_ENABLED
 
@@ -161,24 +161,22 @@ Variant GDFunction::call(GDInstance *p_instance, const Variant **p_args, int p_a
 
 #endif
 
-	uint32_t alloca_size=0;
-	GDScript *_class;
-	int ip=0;
-	int line=_initial_line;
+	state.alloca_size=0;
+	state.line=_initial_line;
 
 
 
 	if (p_state) {
 		//use existing (supplied) state (yielded)
-		stack=(Variant*)p_state->stack.ptr();
-		call_args=(Variant**)&p_state->stack[sizeof(Variant)*p_state->stack_size];
-		line=p_state->line;
-		ip=p_state->ip;
-		alloca_size=p_state->stack.size();
-		_class=p_state->_class;
+		state.stack=(Variant*)p_state->stack.ptr();
+		state.call_args=(Variant**)&p_state->stack[sizeof(Variant)*p_state->stack_size];
+		state.line=p_state->line;
+		state.ip=p_state->ip;
+		state.alloca_size=p_state->stack.size();
+		state._class=p_state->_class;
 		p_instance=p_state->instance;
-		defarg=p_state->defarg;
-		self=p_state->self;
+		state.defarg=p_state->defarg;
+		state.self=p_state->self;
 		//stack[p_state->result_pos]=p_state->result; //assign stack with result
 
 	} else {
@@ -199,76 +197,75 @@ Variant GDFunction::call(GDInstance *p_instance, const Variant **p_args, int p_a
 				return Variant();
 			} else {
 
-				defarg=_argument_count-p_argcount;
+				state.defarg=_argument_count-p_argcount;
 			}
 		}
 
-		alloca_size = sizeof(Variant*)*_call_size + sizeof(Variant)*_stack_size;
+		state.alloca_size = sizeof(Variant*)*_call_size + sizeof(Variant)*_stack_size;
 
-		if (alloca_size) {
+		if (state.alloca_size) {
 
-			uint8_t *aptr = (uint8_t*)alloca(alloca_size);
+			uint8_t *aptr = (uint8_t*)alloca(state.alloca_size);
 
 			if (_stack_size) {
 
-				stack=(Variant*)aptr;
+				state.stack=(Variant*)aptr;
 				for(int i=0;i<p_argcount;i++)
-					memnew_placement(&stack[i],Variant(*p_args[i]));
+					memnew_placement(&state.stack[i],Variant(*p_args[i]));
 				for(int i=p_argcount;i<_stack_size;i++)
-					memnew_placement(&stack[i],Variant);
+					memnew_placement(&state.stack[i],Variant);
 			} else {
-				stack=NULL;
+				state.stack=NULL;
 			}
 
 			if (_call_size) {
 
-				call_args = (Variant**)&aptr[sizeof(Variant)*_stack_size];
+				state.call_args = (Variant**)&aptr[sizeof(Variant)*_stack_size];
 			} else {
 
-				call_args=NULL;
+				state.call_args=NULL;
 			}
 
 
 		} else {
-			stack=NULL;
-			call_args=NULL;
+			state.stack=NULL;
+			state.call_args=NULL;
 		}
 
 		if (p_instance) {
 			if (p_instance->base_ref && static_cast<Reference*>(p_instance->owner)->is_referenced()) {
 
-				self=REF(static_cast<Reference*>(p_instance->owner));
+				state.self=REF(static_cast<Reference*>(p_instance->owner));
 			} else {
-				self=p_instance->owner;
+				state.self=p_instance->owner;
 			}
-			_class=p_instance->script.ptr();
+			state._class=p_instance->script.ptr();
 		} else {
-			_class=_script;
+			state._class=_script;
 		}
 	}
-
-	String err_text;
 
 #ifdef DEBUG_ENABLED
 
 	if (ScriptDebugger::get_singleton())
-		GDScriptLanguage::get_singleton()->enter_function(p_instance,this,stack,&ip,&line);
+		GDScriptLanguage::get_singleton()->enter_function(p_instance,this,state.stack,&state.ip,&state.line);
 
 #define CHECK_SPACE(m_space)\
-	ERR_BREAK((ip+m_space)>_code_size)
+	ERR_FAIL_COND_V((state->ip+m_space)>_code_size,false)\
+
 
 #define GET_VARIANT_PTR(m_v,m_code_ofs) \
 	Variant *m_v; \
-	m_v = _get_variant(_code_ptr[ip+m_code_ofs],p_instance,_class,self,stack,err_text);\
+	m_v = _get_variant(_code_ptr[state->ip+m_code_ofs],state->instance,state->_class,state->self,state->stack,state->err_text);\
 	if (!m_v)\
-	break;
+	return false;
 
 
 #else
 #define CHECK_SPACE(m_space)
 #define GET_VARIANT_PTR(m_v,m_code_ofs) \
 	Variant *m_v; \
-	m_v = _get_variant(_code_ptr[ip+m_code_ofs],p_instance,_class,self,stack,err_text);
+	m_v = _get_variant(_code_ptr[state->ip+m_code_ofs],state->instance,state->_class,state->self,state->stack,state->err_text);
 
 #endif
 
@@ -276,869 +273,142 @@ Variant GDFunction::call(GDInstance *p_instance, const Variant **p_args, int p_a
 #ifdef DEBUG_ENABLED
 
 	uint64_t function_start_time;
-	uint64_t function_call_time;
 
 	if (GDScriptLanguage::get_singleton()->profiling) {
 		function_start_time=OS::get_singleton()->get_ticks_usec();
-		function_call_time=0;
+		state.function_call_time=0;
 		profile.call_count++;
 		profile.frame_call_count++;
 	}
 #endif
-	bool exit_ok=false;
-
-	while(ip<_code_size) {
-
-
-		int last_opcode=_code_ptr[ip];
-		switch(_code_ptr[ip]) {
-
-			case OPCODE_OPERATOR: {
-
-				CHECK_SPACE(5);
-
-				bool valid;
-				Variant::Operator op = (Variant::Operator)_code_ptr[ip+1];
-				ERR_BREAK(op>=Variant::OP_MAX);
-
-				GET_VARIANT_PTR(a,2);
-				GET_VARIANT_PTR(b,3);
-				GET_VARIANT_PTR(dst,4);
-
-#ifdef DEBUG_ENABLED
-				Variant ret;
-				Variant::evaluate(op,*a,*b,ret,valid);
-#else
-				Variant::evaluate(op,*a,*b,*dst,valid);
-#endif
-
-				if (!valid) {
-#ifdef DEBUG_ENABLED
-
-					if (ret.get_type()==Variant::STRING) {
-						//return a string when invalid with the error
-						err_text=ret;
-						err_text += " in operator '"+Variant::get_operator_name(op)+"'.";
-					} else {
-						err_text="Invalid operands '"+Variant::get_type_name(a->get_type())+"' and '"+Variant::get_type_name(b->get_type())+"' in operator '"+Variant::get_operator_name(op)+"'.";
-					}
-#endif
-					break;
-
-				}
-#ifdef DEBUG_ENABLED
-				*dst=ret;
-#endif
-
-				ip+=5;
-
-			} continue;
-			case OPCODE_EXTENDS_TEST: {
-
-				CHECK_SPACE(4);
-
-				GET_VARIANT_PTR(a,1);
-				GET_VARIANT_PTR(b,2);
-				GET_VARIANT_PTR(dst,3);
-
-#ifdef DEBUG_ENABLED
-
-				if (a->get_type()!=Variant::OBJECT || a->operator Object*()==NULL) {
-
-					err_text="Left operand of 'extends' is not an instance of anything.";
-					break;
-
-				}
-				if (b->get_type()!=Variant::OBJECT || b->operator Object*()==NULL) {
-
-					err_text="Right operand of 'extends' is not a class.";
-					break;
-
-				}
-#endif
-
-
-				Object *obj_A = *a;
-				Object *obj_B = *b;
-
-
-				GDScript *scr_B = obj_B->cast_to<GDScript>();
-
-				bool extends_ok=false;
-
-				if (scr_B) {
-					//if B is a script, the only valid condition is that A has an instance which inherits from the script
-					//in other situation, this shoul return false.
-
-					if (obj_A->get_script_instance() && obj_A->get_script_instance()->get_language()==GDScriptLanguage::get_singleton()) {
-
-						GDScript *cmp = static_cast<GDScript*>(obj_A->get_script_instance()->get_script().ptr());
-						//bool found=false;
-						while(cmp) {
-
-							if (cmp==scr_B) {
-								//inherits from script, all ok
-								extends_ok=true;
-								break;
-
-							}
-
-							cmp=cmp->_base;
-						}
-
-					}
-
-
-				} else {
-
-					GDNativeClass *nc= obj_B->cast_to<GDNativeClass>();
-
-					if (!nc) {
-
-						err_text="Right operand of 'extends' is not a class (type: '"+obj_B->get_type()+"').";
-						break;
-					}
-
-					extends_ok=ObjectTypeDB::is_type(obj_A->get_type_name(),nc->get_name());
-				}
-
-				*dst=extends_ok;
-				ip+=4;
-
-			} continue;
-			case OPCODE_SET: {
-
-				CHECK_SPACE(3);
-
-				GET_VARIANT_PTR(dst,1);
-				GET_VARIANT_PTR(index,2);
-				GET_VARIANT_PTR(value,3);
-
-				bool valid;
-				dst->set(*index,*value,&valid);
-
-				if (!valid) {
-					String v = index->operator String();
-					if (v!="") {
-						v="'"+v+"'";
-					} else {
-						v="of type '"+_get_var_type(index)+"'";
-					}
-					err_text="Invalid set index "+v+" (on base: '"+_get_var_type(dst)+"').";
-					break;
-				}
-
-				ip+=4;
-			} continue;
-			case OPCODE_GET: {
-
-				CHECK_SPACE(3);
-
-				GET_VARIANT_PTR(src,1);
-				GET_VARIANT_PTR(index,2);
-				GET_VARIANT_PTR(dst,3);
-
-				bool valid;
-#ifdef DEBUG_ENABLED
-				//allow better error message in cases where src and dst are the same stack position
-				Variant ret = src->get(*index,&valid);
-#else
-				*dst = src->get(*index,&valid);
-
-#endif
-				if (!valid) {
-					String v = index->operator String();
-					if (v!="") {
-						v="'"+v+"'";
-					} else {
-						v="of type '"+_get_var_type(index)+"'";
-					}
-					err_text="Invalid get index "+v+" (on base: '"+_get_var_type(src)+"').";
-					break;
-				}
-#ifdef DEBUG_ENABLED
-				*dst=ret;
-#endif
-				ip+=4;
-			} continue;
-			case OPCODE_SET_NAMED: {
-
-				CHECK_SPACE(3);
-
-				GET_VARIANT_PTR(dst,1);
-				GET_VARIANT_PTR(value,3);
-
-				int indexname = _code_ptr[ip+2];
-
-				ERR_BREAK(indexname<0 || indexname>=_global_names_count);
-				const StringName *index = &_global_names_ptr[indexname];
-
-				bool valid;
-				dst->set_named(*index,*value,&valid);
-
-				if (!valid) {
-					String err_type;
-					err_text="Invalid set index '"+String(*index)+"' (on base: '"+_get_var_type(dst)+"').";
-					break;
-				}
-
-				ip+=4;
-			} continue;
-			case OPCODE_GET_NAMED: {
-
-
-				CHECK_SPACE(3);
-
-				GET_VARIANT_PTR(src,1);
-				GET_VARIANT_PTR(dst,3);
-
-				int indexname = _code_ptr[ip+2];
-
-				ERR_BREAK(indexname<0 || indexname>=_global_names_count);
-				const StringName *index = &_global_names_ptr[indexname];
-
-				bool valid;
-#ifdef DEBUG_ENABLED
-				//allow better error message in cases where src and dst are the same stack position
-				Variant ret = src->get_named(*index,&valid);
-
-#else
-				*dst = src->get_named(*index,&valid);
-#endif
-
-				if (!valid) {
-					if (src->has_method(*index)) {
-						err_text="Invalid get index '"+index->operator String()+"' (on base: '"+_get_var_type(src)+"'). Did you mean '."+index->operator String()+"()' ?";
-					} else {
-						err_text="Invalid get index '"+index->operator String()+"' (on base: '"+_get_var_type(src)+"').";
-					}
-					break;
-				}
-#ifdef DEBUG_ENABLED
-				*dst=ret;
-#endif
-				ip+=4;
-			} continue;
-			case OPCODE_ASSIGN: {
-
-				CHECK_SPACE(3);
-				GET_VARIANT_PTR(dst,1);
-				GET_VARIANT_PTR(src,2);
-
-				*dst = *src;
-
-				ip+=3;
-
-			} continue;
-			case OPCODE_ASSIGN_TRUE: {
-
-				CHECK_SPACE(2);
-				GET_VARIANT_PTR(dst,1);
-
-				*dst = true;
-
-				ip+=2;
-			} continue;
-			case OPCODE_ASSIGN_FALSE: {
-
-				CHECK_SPACE(2);
-				GET_VARIANT_PTR(dst,1);
-
-				*dst = false;
-
-				ip+=2;
-			} continue;
-			case OPCODE_CONSTRUCT: {
-
-				CHECK_SPACE(2);
-				Variant::Type t=Variant::Type(_code_ptr[ip+1]);
-				int argc=_code_ptr[ip+2];
-				CHECK_SPACE(argc+2);
-				Variant **argptrs = call_args;
-				for(int i=0;i<argc;i++) {
-					GET_VARIANT_PTR(v,3+i);
-					argptrs[i]=v;
-				}
-
-				GET_VARIANT_PTR(dst,3+argc);
-				Variant::CallError err;
-				*dst = Variant::construct(t,(const Variant**)argptrs,argc,err);
-
-				if (err.error!=Variant::CallError::CALL_OK) {
-
-					err_text=_get_call_error(err,"'"+Variant::get_type_name(t)+"' constructor",(const Variant**)argptrs);
-					break;
-				}
-
-				ip+=4+argc;
-				//construct a basic type
-			} continue;
-			case OPCODE_CONSTRUCT_ARRAY: {
-
-				CHECK_SPACE(1);
-				int argc=_code_ptr[ip+1];
-				Array array(true); //arrays are always shared
-				array.resize(argc);
-				CHECK_SPACE(argc+2);
-
-				for(int i=0;i<argc;i++) {
-					GET_VARIANT_PTR(v,2+i);
-					array[i]=*v;
-
-				}
-
-				GET_VARIANT_PTR(dst,2+argc);
-
-				*dst=array;
-
-				ip+=3+argc;
-
-			} continue;
-			case OPCODE_CONSTRUCT_DICTIONARY: {
-
-				CHECK_SPACE(1);
-				int argc=_code_ptr[ip+1];
-				Dictionary dict(true); //arrays are always shared
-
-				CHECK_SPACE(argc*2+2);
-
-				for(int i=0;i<argc;i++) {
-
-					GET_VARIANT_PTR(k,2+i*2+0);
-					GET_VARIANT_PTR(v,2+i*2+1);
-					dict[*k]=*v;
-
-				}
-
-				GET_VARIANT_PTR(dst,2+argc*2);
-
-				*dst=dict;
-
-				ip+=3+argc*2;
-
-			} continue;
-			case OPCODE_CALL_RETURN:
-			case OPCODE_CALL: {
-
-
-				CHECK_SPACE(4);
-				bool call_ret = _code_ptr[ip]==OPCODE_CALL_RETURN;
-
-				int argc=_code_ptr[ip+1];
-				GET_VARIANT_PTR(base,2);
-				int nameg=_code_ptr[ip+3];
-
-				ERR_BREAK(nameg<0 || nameg>=_global_names_count);
-				const StringName *methodname = &_global_names_ptr[nameg];
-
-				ERR_BREAK(argc<0);
-				ip+=4;
-				CHECK_SPACE(argc+1);
-				Variant **argptrs = call_args;
-
-				for(int i=0;i<argc;i++) {
-					GET_VARIANT_PTR(v,i);
-					argptrs[i]=v;
-				}
-
-#ifdef DEBUG_ENABLED
-				uint64_t call_time;
-
-				if (GDScriptLanguage::get_singleton()->profiling) {
-					call_time=OS::get_singleton()->get_ticks_usec();
-				}
-
-#endif
-				Variant::CallError err;
-				if (call_ret) {
-
-					GET_VARIANT_PTR(ret,argc);
-					base->call_ptr(*methodname,(const Variant**)argptrs,argc,ret,err);
-				} else {
-
-					base->call_ptr(*methodname,(const Variant**)argptrs,argc,NULL,err);
-				}
-#ifdef DEBUG_ENABLED
-				if (GDScriptLanguage::get_singleton()->profiling) {
-					function_call_time+=OS::get_singleton()->get_ticks_usec() - call_time;
-				}
-#endif
-
-				if (err.error!=Variant::CallError::CALL_OK) {
-
-
-					String methodstr = *methodname;
-					String basestr = _get_var_type(base);
-
-					if (methodstr=="call") {
-						if (argc>=1) {
-							methodstr=String(*argptrs[0])+" (via call)";
-							if (err.error==Variant::CallError::CALL_ERROR_INVALID_ARGUMENT) {
-								err.argument-=1;
-							}
-						}
-					} if (methodstr=="free") {
-
-						if (err.error==Variant::CallError::CALL_ERROR_INVALID_METHOD) {
-
-							if (base->is_ref()) {
-								err_text="Attempted to free a reference.";
-								break;
-							} else if (base->get_type()==Variant::OBJECT) {
-
-								err_text="Attempted to free a locked object (calling or emitting).";
-								break;
-							}
-						}
-					}
-					err_text=_get_call_error(err,"function '"+methodstr+"' in base '"+basestr+"'",(const Variant**)argptrs);
-					break;
-				}
-
-				//_call_func(NULL,base,*methodname,ip,argc,p_instance,stack);
-				ip+=argc+1;
-
-			} continue;
-			case OPCODE_CALL_BUILT_IN: {
-
-				CHECK_SPACE(4);
-
-				GDFunctions::Function func = GDFunctions::Function(_code_ptr[ip+1]);
-				int argc=_code_ptr[ip+2];
-				ERR_BREAK(argc<0);
-
-				ip+=3;
-				CHECK_SPACE(argc+1);
-				Variant **argptrs = call_args;
-
-				for(int i=0;i<argc;i++) {
-					GET_VARIANT_PTR(v,i);
-					argptrs[i]=v;
-				}
-
-				GET_VARIANT_PTR(dst,argc);
-
-				Variant::CallError err;
-
-				GDFunctions::call(func,(const Variant**)argptrs,argc,*dst,err);
-
-				if (err.error!=Variant::CallError::CALL_OK) {
-
-
-					String methodstr = GDFunctions::get_func_name(func);
-					if (dst->get_type()==Variant::STRING) {
-						//call provided error string
-						err_text="Error calling built-in function '"+methodstr+"': "+String(*dst);
-					} else {
-						err_text=_get_call_error(err,"built-in function '"+methodstr+"'",(const Variant**)argptrs);
-					}
-					break;
-				}
-				ip+=argc+1;
-
-			} continue;
-			case OPCODE_CALL_SELF: {
-
-
-			} break;
-			case OPCODE_CALL_SELF_BASE: {
-
-				CHECK_SPACE(2);
-				int self_fun = _code_ptr[ip+1];
-#ifdef DEBUG_ENABLED
-
-				if (self_fun<0 || self_fun>=_global_names_count) {
-
-					err_text="compiler bug, function name not found";
-					break;
-				}
-#endif
-				const StringName *methodname = &_global_names_ptr[self_fun];
-
-				int argc=_code_ptr[ip+2];
-
-				CHECK_SPACE(2+argc+1);
-
-				Variant **argptrs = call_args;
-
-				for(int i=0;i<argc;i++) {
-					GET_VARIANT_PTR(v,i+3);
-					argptrs[i]=v;
-				}
-
-				GET_VARIANT_PTR(dst,argc+3);
-
-				const GDScript *gds = _script;
-
-
-				const Map<StringName,GDFunction*>::Element *E=NULL;
-				while (gds->base.ptr()) {
-					gds=gds->base.ptr();
-					E=gds->member_functions.find(*methodname);
-					if (E)
-						break;
-				}
-
-				Variant::CallError err;
-
-				if (E) {
-
-					*dst=E->get()->call(p_instance,(const Variant**)argptrs,argc,err);
-				} else if (gds->native.ptr()) {
-
-					if (*methodname!=GDScriptLanguage::get_singleton()->strings._init) {
-
-						MethodBind *mb = ObjectTypeDB::get_method(gds->native->get_name(),*methodname);
-						if (!mb) {
-							err.error=Variant::CallError::CALL_ERROR_INVALID_METHOD;
-						} else {
-							*dst=mb->call(p_instance->owner,(const Variant**)argptrs,argc,err);
-						}
-					} else {
-						err.error=Variant::CallError::CALL_OK;
-					}
-				} else {
-
-					if (*methodname!=GDScriptLanguage::get_singleton()->strings._init) {
-						err.error=Variant::CallError::CALL_ERROR_INVALID_METHOD;
-					} else {
-						err.error=Variant::CallError::CALL_OK;
-					}
-				}
-
-
-				if (err.error!=Variant::CallError::CALL_OK) {
-
-
-					String methodstr = *methodname;
-					err_text=_get_call_error(err,"function '"+methodstr+"'",(const Variant**)argptrs);
-
-					break;
-				}
-
-				ip+=4+argc;
-
-			} continue;
+	state.exit_ok=false;
+
+	while(state.ip<_code_size) {
+
+
+		int last_opcode=_code_ptr[state.ip];
+
+		bool go_on;
+		switch(_code_ptr[state.ip]) {
+			case OPCODE_OPERATOR:
+                go_on=_process_opcode_operator(&state);
+                break;
+			case OPCODE_EXTENDS_TEST:
+                go_on=_process_opcode_extends_test(&state);
+                break;
+			case OPCODE_SET:
+                go_on=_process_opcode_set(&state);
+                break;
+			case OPCODE_GET:
+                go_on=_process_opcode_get(&state);
+                break;
+			case OPCODE_SET_NAMED:
+                go_on=_process_opcode_set_named(&state);
+                break;
+			case OPCODE_GET_NAMED:
+                go_on=_process_opcode_get_named(&state);
+                break;
+			case OPCODE_ASSIGN:
+                go_on=_process_opcode_assign(&state);
+                break;
+			case OPCODE_ASSIGN_TRUE:
+                go_on=_process_opcode_assign_true(&state);
+                break;
+			case OPCODE_ASSIGN_FALSE:
+                go_on=_process_opcode_assign_false(&state);
+                break;
+			case OPCODE_CONSTRUCT: //only for basic types!!
+                go_on=_process_opcode_construct(&state);
+                break;
+			case OPCODE_CONSTRUCT_ARRAY:
+                go_on=_process_opcode_construct_array(&state);
+                break;
+			case OPCODE_CONSTRUCT_DICTIONARY:
+                go_on=_process_opcode_construct_dictionary(&state);
+                break;
+			case OPCODE_CALL:
+				case OPCODE_CALL_RETURN:
+                go_on=_process_opcode_call(&state);
+                break;
+			case OPCODE_CALL_BUILT_IN:
+                go_on=_process_opcode_call_built_in(&state);
+                break;
+			case OPCODE_CALL_SELF:
+                go_on=_process_opcode_call_self(&state);
+                break;
+			case OPCODE_CALL_SELF_BASE:
+                go_on=_process_opcode_call_self_base(&state);
+                break;
 			case OPCODE_YIELD:
-			case OPCODE_YIELD_SIGNAL: {
-
-				int ipofs=1;
-				if (_code_ptr[ip]==OPCODE_YIELD_SIGNAL) {
-					CHECK_SPACE(4);
-					ipofs+=2;
-				} else {
-					CHECK_SPACE(2);
-
-				}
-
-				Ref<GDFunctionState> gdfs = memnew( GDFunctionState );
-				gdfs->function=this;
-
-				gdfs->state.stack.resize(alloca_size);
-				//copy variant stack
-				for(int i=0;i<_stack_size;i++) {
-					memnew_placement(&gdfs->state.stack[sizeof(Variant)*i],Variant(stack[i]));
-				}
-				gdfs->state.stack_size=_stack_size;
-				gdfs->state.self=self;
-				gdfs->state.alloca_size=alloca_size;
-				gdfs->state._class=_class;
-				gdfs->state.ip=ip+ipofs;
-				gdfs->state.line=line;
-				gdfs->state.instance_id=(p_instance && p_instance->get_owner())?p_instance->get_owner()->get_instance_ID():0;
-				gdfs->state.script_id=_class->get_instance_ID();
-				//gdfs->state.result_pos=ip+ipofs-1;
-				gdfs->state.defarg=defarg;
-				gdfs->state.instance=p_instance;
-				gdfs->function=this;
-
-				retvalue=gdfs;
-
-				if (_code_ptr[ip]==OPCODE_YIELD_SIGNAL) {
-					GET_VARIANT_PTR(argobj,1);
-					GET_VARIANT_PTR(argname,2);
-					//do the oneshot connect
-
-					if (argobj->get_type()!=Variant::OBJECT) {
-						err_text="First argument of yield() not of type object.";
-						break;
-					}
-					if (argname->get_type()!=Variant::STRING) {
-						err_text="Second argument of yield() not a string (for signal name).";
-						break;
-					}
-					Object *obj=argobj->operator Object *();
-					String signal = argname->operator String();
-#ifdef DEBUG_ENABLED
-
-					if (!obj) {
-						err_text="First argument of yield() is null.";
-						break;
-					}
-					if (ScriptDebugger::get_singleton()) {
-						if (!ObjectDB::instance_validate(obj)) {
-							err_text="First argument of yield() is a previously freed instance.";
-							break;
-						}
-					}
-					if (signal.length()==0) {
-
-						err_text="Second argument of yield() is an empty string (for signal name).";
-						break;
-					}
-
-#endif
-					Error err = obj->connect(signal,gdfs.ptr(),"_signal_callback",varray(gdfs),Object::CONNECT_ONESHOT);
-					if (err!=OK) {
-						err_text="Error connecting to signal: "+signal+" during yield().";
-						break;
-					}
-
-
-				}
-
-				exit_ok=true;
-
-			} break;
-			case OPCODE_YIELD_RESUME: {
-
-				CHECK_SPACE(2);
-				if (!p_state) {
-					err_text=("Invalid Resume (bug?)");
-					break;
-				}
-				GET_VARIANT_PTR(result,1);
-				*result=p_state->result;
-				ip+=2;
-
-			} continue;
-			case OPCODE_JUMP: {
-
-				CHECK_SPACE(2);
-				int to = _code_ptr[ip+1];
-
-				ERR_BREAK(to<0 || to>_code_size);
-				ip=to;
-
-			} continue;
-			case OPCODE_JUMP_IF: {
-
-				CHECK_SPACE(3);
-
-				GET_VARIANT_PTR(test,1);
-
-				bool valid;
-				bool result = test->booleanize(valid);
-#ifdef DEBUG_ENABLED
-				if (!valid) {
-
-					err_text="cannot evaluate conditional expression of type: "+Variant::get_type_name(test->get_type());
-					break;
-				}
-#endif
-				if (result) {
-					int to = _code_ptr[ip+2];
-					ERR_BREAK(to<0 || to>_code_size);
-					ip=to;
-					continue;
-				}
-				ip+=3;
-			} continue;
-			case OPCODE_JUMP_IF_NOT: {
-
-				CHECK_SPACE(3);
-
-				GET_VARIANT_PTR(test,1);
-
-				bool valid;
-				bool result = test->booleanize(valid);
-#ifdef DEBUG_ENABLED
-				if (!valid) {
-
-					err_text="cannot evaluate conditional expression of type: "+Variant::get_type_name(test->get_type());
-					break;
-				}
-#endif
-				if (!result) {
-					int to = _code_ptr[ip+2];
-					ERR_BREAK(to<0 || to>_code_size);
-					ip=to;
-					continue;
-				}
-				ip+=3;
-			} continue;
-			case OPCODE_JUMP_TO_DEF_ARGUMENT: {
-
-				CHECK_SPACE(2);
-				ip=_default_arg_ptr[defarg];
-
-			} continue;
-			case OPCODE_RETURN: {
-
-				CHECK_SPACE(2);
-				GET_VARIANT_PTR(r,1);
-				retvalue=*r;
-				exit_ok=true;
-
-			} break;
-			case OPCODE_ITERATE_BEGIN: {
-
-				CHECK_SPACE(8); //space for this an regular iterate
-
-				GET_VARIANT_PTR(counter,1);
-				GET_VARIANT_PTR(container,2);
-
-				bool valid;
-				if (!container->iter_init(*counter,valid)) {
-					if (!valid) {
-						err_text="Unable to iterate on object of type  "+Variant::get_type_name(container->get_type())+"'.";
-						break;
-					}
-					int jumpto=_code_ptr[ip+3];
-					ERR_BREAK(jumpto<0 || jumpto>_code_size);
-					ip=jumpto;
-					continue;
-				}
-				GET_VARIANT_PTR(iterator,4);
-
-
-				*iterator=container->iter_get(*counter,valid);
-				if (!valid) {
-					err_text="Unable to obtain iterator object of type  "+Variant::get_type_name(container->get_type())+"'.";
-					break;
-				}
-
-
-				ip+=5; //skip regular iterate which is always next
-
-			} continue;
-			case OPCODE_ITERATE: {
-
-				CHECK_SPACE(4);
-
-				GET_VARIANT_PTR(counter,1);
-				GET_VARIANT_PTR(container,2);
-
-				bool valid;
-				if (!container->iter_next(*counter,valid)) {
-					if (!valid) {
-						err_text="Unable to iterate on object of type  "+Variant::get_type_name(container->get_type())+"' (type changed since first iteration?).";
-						break;
-					}
-					int jumpto=_code_ptr[ip+3];
-					ERR_BREAK(jumpto<0 || jumpto>_code_size);
-					ip=jumpto;
-					continue;
-				}
-				GET_VARIANT_PTR(iterator,4);
-
-				*iterator=container->iter_get(*counter,valid);
-				if (!valid) {
-					err_text="Unable to obtain iterator object of type  "+Variant::get_type_name(container->get_type())+"' (but was obtained on first iteration?).";
-					break;
-				}
-
-				ip+=5; //loop again
-			} continue;
-			case OPCODE_ASSERT: {
-				CHECK_SPACE(2);
-				GET_VARIANT_PTR(test,1);
-
-#ifdef DEBUG_ENABLED
-				bool valid;
-				bool result = test->booleanize(valid);
-
-
-				if (!valid) {
-
-					err_text="cannot evaluate conditional expression of type: "+Variant::get_type_name(test->get_type());
-					break;
-				}
-
-
-				if (!result) {
-
-					err_text="Assertion failed.";
-					break;
-				}
-
-#endif
-
-				ip+=2;
-			} continue;
-			case OPCODE_BREAKPOINT: {
-#ifdef DEBUG_ENABLED
-				if (ScriptDebugger::get_singleton()) {
-					GDScriptLanguage::get_singleton()->debug_break("Breakpoint Statement",true);
-				}
-#endif
-				ip+=1;
-			} continue;
-			case OPCODE_LINE: {
-				CHECK_SPACE(2);
-
-				line=_code_ptr[ip+1];
-				ip+=2;
-
-				if (ScriptDebugger::get_singleton()) {
-					// line
-					bool do_break=false;
-
-					if (ScriptDebugger::get_singleton()->get_lines_left()>0) {
-
-						if (ScriptDebugger::get_singleton()->get_depth()<=0)
-							ScriptDebugger::get_singleton()->set_lines_left( ScriptDebugger::get_singleton()->get_lines_left() -1 );
-						if (ScriptDebugger::get_singleton()->get_lines_left()<=0)
-							do_break=true;
-					}
-
-					if (ScriptDebugger::get_singleton()->is_breakpoint(line,source))
-						do_break=true;
-
-					if (do_break) {
-						GDScriptLanguage::get_singleton()->debug_break("Breakpoint",true);
-					}
-
-					ScriptDebugger::get_singleton()->line_poll();
-
-				}
-			} continue;
-			case OPCODE_END: {
-
-				exit_ok=true;
-				break;
-
-			} break;
-			default: {
-
-				err_text="Illegal opcode "+itos(_code_ptr[ip])+" at address "+itos(ip);
-			} break;
-
-		}
-
-		if (exit_ok)
+			case OPCODE_YIELD_SIGNAL:
+                go_on=_process_opcode_yield(&state);
+                break;
+			case OPCODE_YIELD_RESUME:
+                go_on=_process_opcode_yield_resume(&state);
+                break;
+			case OPCODE_JUMP:
+                go_on=_process_opcode_jump(&state);
+                break;
+			case OPCODE_JUMP_IF:
+                go_on=_process_opcode_jump_if(&state);
+                break;
+			case OPCODE_JUMP_IF_NOT:
+                go_on=_process_opcode_jump_if_not(&state);
+                break;
+			case OPCODE_JUMP_TO_DEF_ARGUMENT:
+                go_on=_process_opcode_jump_to_def_argument(&state);
+                break;
+			case OPCODE_RETURN:
+                go_on=_process_opcode_return(&state);
+                break;
+			case OPCODE_ITERATE_BEGIN:
+                go_on=_process_opcode_iterate_begin(&state);
+                break;
+			case OPCODE_ITERATE:
+                go_on=_process_opcode_iterate(&state);
+                break;
+			case OPCODE_ASSERT:
+                go_on=_process_opcode_assert(&state);
+                break;
+			case OPCODE_BREAKPOINT:
+                go_on=_process_opcode_breakpoint(&state);
+                break;
+			case OPCODE_LINE:
+                go_on=_process_opcode_line(&state);
+                break;
+            case OPCODE_END:
+                go_on=_process_opcode_end(&state);
+                break;
+            default:
+                go_on=_process_opcode_invalid(&state);
+                break;
+        }
+
+		if (go_on)
+			continue;
+		if (state.exit_ok)
 			break;
 		//error
 		// function, file, line, error, explanation
 		String err_file;
 		if (p_instance)
 			err_file=p_instance->script->path;
-		else if (_class)
-			err_file=_class->path;
+		else if (state._class)
+			err_file=state._class->path;
 		if (err_file=="")
 			err_file="<built-in>";
 		String err_func = name;
 		if (p_instance && p_instance->script->name!="")
 			err_func=p_instance->script->name+"."+err_func;
-		int err_line=line;
-		if (err_text=="") {
-			err_text="Internal Script Error! - opcode #"+itos(last_opcode)+" (report please).";
+		int err_line=state.line;
+		if (state.err_text=="") {
+			state.err_text="Internal Script Error! - opcode #"+itos(last_opcode)+" (report please).";
 		}
 
-		if (!GDScriptLanguage::get_singleton()->debug_break(err_text,false)) {
+		if (!GDScriptLanguage::get_singleton()->debug_break(state.err_text,false)) {
 			// debugger break did not happen
 
-			_err_print_error(err_func.utf8().get_data(),err_file.utf8().get_data(),err_line,err_text.utf8().get_data(),ERR_HANDLER_SCRIPT);
+			_err_print_error(err_func.utf8().get_data(),err_file.utf8().get_data(),err_line,state.err_text.utf8().get_data(),ERR_HANDLER_SCRIPT);
 		}
 
 
@@ -1149,10 +419,10 @@ Variant GDFunction::call(GDInstance *p_instance, const Variant **p_args, int p_a
 	if (GDScriptLanguage::get_singleton()->profiling) {
 		uint64_t time_taken = OS::get_singleton()->get_ticks_usec() - function_start_time;
 		profile.total_time+=time_taken;
-		profile.self_time+=time_taken-function_call_time;
+		profile.self_time+=time_taken-state.function_call_time;
 		profile.frame_total_time+=time_taken;
-		profile.frame_self_time+=time_taken-function_call_time;
-		GDScriptLanguage::get_singleton()->script_frame_time+=time_taken-function_call_time;
+		profile.frame_self_time+=time_taken-state.function_call_time;
+		GDScriptLanguage::get_singleton()->script_frame_time+=time_taken-state.function_call_time;
 
 	}
 
@@ -1164,11 +434,888 @@ Variant GDFunction::call(GDInstance *p_instance, const Variant **p_args, int p_a
 	if (_stack_size) {
 		//free stack
 		for(int i=0;i<_stack_size;i++)
-			stack[i].~Variant();
+			state.stack[i].~Variant();
 	}
 
-	return retvalue;
+	return state.result;
 
+}
+
+bool GDFunction::_process_opcode_operator(ExecState *state) {
+
+	CHECK_SPACE(5);
+
+	bool valid;
+	Variant::Operator op = (Variant::Operator)_code_ptr[state->ip+1];
+	ERR_FAIL_COND_V(op>=Variant::OP_MAX,false);
+
+	GET_VARIANT_PTR(a,2);
+	GET_VARIANT_PTR(b,3);
+	GET_VARIANT_PTR(dst,4);
+
+#ifdef DEBUG_ENABLED
+	Variant ret;
+	Variant::evaluate(op,*a,*b,ret,valid);
+#else
+	Variant::evaluate(op,*a,*b,*dst,valid);
+#endif
+
+	if (!valid) {
+#ifdef DEBUG_ENABLED
+
+		if (ret.get_type()==Variant::STRING) {
+			//return a string when invalid with the error
+			state->err_text=ret;
+			state->err_text += " in operator '"+Variant::get_operator_name(op)+"'.";
+		} else {
+			state->err_text="Invalid operands '"+Variant::get_type_name(a->get_type())+"' and '"+Variant::get_type_name(b->get_type())+"' in operator '"+Variant::get_operator_name(op)+"'.";
+		}
+#endif
+		return false;
+
+	}
+#ifdef DEBUG_ENABLED
+	*dst=ret;
+#endif
+
+	state->ip+=5;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_extends_test(ExecState *state) {
+
+	CHECK_SPACE(4);
+
+	GET_VARIANT_PTR(a,1);
+	GET_VARIANT_PTR(b,2);
+	GET_VARIANT_PTR(dst,3);
+
+#ifdef DEBUG_ENABLED
+
+	if (a->get_type()!=Variant::OBJECT || a->operator Object*()==NULL) {
+
+		state->err_text="Left operand of 'extends' is not an instance of anything.";
+		return false;
+
+	}
+	if (b->get_type()!=Variant::OBJECT || b->operator Object*()==NULL) {
+
+		state->err_text="Right operand of 'extends' is not a class.";
+		return false;
+
+	}
+#endif
+
+
+	Object *obj_A = *a;
+	Object *obj_B = *b;
+
+
+	GDScript *scr_B = obj_B->cast_to<GDScript>();
+
+	bool extends_ok=false;
+
+	if (scr_B) {
+		//if B is a script, the only valid condition is that A has an instance which inherits from the script
+		//in other situation, this shoul return false.
+
+		if (obj_A->get_script_instance() && obj_A->get_script_instance()->get_language()==GDScriptLanguage::get_singleton()) {
+
+			GDScript *cmp = static_cast<GDScript*>(obj_A->get_script_instance()->get_script().ptr());
+			//bool found=false;
+			while(cmp) {
+
+				if (cmp==scr_B) {
+					//inherits from script, all ok
+					extends_ok=true;
+					break;
+
+				}
+
+				cmp=cmp->_base;
+			}
+
+		}
+
+
+	} else {
+
+		GDNativeClass *nc= obj_B->cast_to<GDNativeClass>();
+
+		if (!nc) {
+
+			state->err_text="Right operand of 'extends' is not a class (type: '"+obj_B->get_type()+"').";
+			return false;
+		}
+
+		extends_ok=ObjectTypeDB::is_type(obj_A->get_type_name(),nc->get_name());
+	}
+
+	*dst=extends_ok;
+	state->ip+=4;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_set(ExecState *state) {
+
+	CHECK_SPACE(3);
+
+	GET_VARIANT_PTR(dst,1);
+	GET_VARIANT_PTR(index,2);
+	GET_VARIANT_PTR(value,3);
+
+	bool valid;
+	dst->set(*index,*value,&valid);
+
+	if (!valid) {
+		String v = index->operator String();
+		if (v!="") {
+			v="'"+v+"'";
+		} else {
+			v="of type '"+_get_var_type(index)+"'";
+		}
+		state->err_text="Invalid set index "+v+" (on base: '"+_get_var_type(dst)+"').";
+		return false;
+	}
+
+	state->ip+=4;
+	return true;
+}
+
+bool GDFunction::_process_opcode_get(ExecState *state) {
+
+	CHECK_SPACE(3);
+
+	GET_VARIANT_PTR(src,1);
+	GET_VARIANT_PTR(index,2);
+	GET_VARIANT_PTR(dst,3);
+
+	bool valid;
+#ifdef DEBUG_ENABLED
+	//allow better error message in cases where src and dst are the same stack position
+	Variant ret = src->get(*index,&valid);
+#else
+	*dst = src->get(*index,&valid);
+
+#endif
+	if (!valid) {
+		String v = index->operator String();
+		if (v!="") {
+			v="'"+v+"'";
+		} else {
+			v="of type '"+_get_var_type(index)+"'";
+		}
+		state->err_text="Invalid get index "+v+" (on base: '"+_get_var_type(src)+"').";
+		return false;
+	}
+#ifdef DEBUG_ENABLED
+	*dst=ret;
+#endif
+	state->ip+=4;
+	return true;
+}
+
+bool GDFunction::_process_opcode_set_named(ExecState *state) {
+
+	CHECK_SPACE(3);
+
+	GET_VARIANT_PTR(dst,1);
+	GET_VARIANT_PTR(value,3);
+
+	int indexname = _code_ptr[state->ip+2];
+
+	ERR_FAIL_COND_V(indexname<0 || indexname>=_global_names_count,false);
+	const StringName *index = &_global_names_ptr[indexname];
+
+	bool valid;
+	dst->set_named(*index,*value,&valid);
+
+	if (!valid) {
+		String err_type;
+		state->err_text="Invalid set index '"+String(*index)+"' (on base: '"+_get_var_type(dst)+"').";
+		return false;
+	}
+
+	state->ip+=4;
+	return true;
+}
+
+bool GDFunction::_process_opcode_get_named(ExecState *state) {
+
+
+	CHECK_SPACE(3);
+
+	GET_VARIANT_PTR(src,1);
+	GET_VARIANT_PTR(dst,3);
+
+	int indexname = _code_ptr[state->ip+2];
+
+	ERR_FAIL_COND_V(indexname<0 || indexname>=_global_names_count,false);
+	const StringName *index = &_global_names_ptr[indexname];
+
+	bool valid;
+#ifdef DEBUG_ENABLED
+	//allow better error message in cases where src and dst are the same stack position
+	Variant ret = src->get_named(*index,&valid);
+
+#else
+	*dst = src->get_named(*index,&valid);
+#endif
+
+	if (!valid) {
+		if (src->has_method(*index)) {
+			state->err_text="Invalid get index '"+index->operator String()+"' (on base: '"+_get_var_type(src)+"'). Did you mean '."+index->operator String()+"()' ?";
+		} else {
+			state->err_text="Invalid get index '"+index->operator String()+"' (on base: '"+_get_var_type(src)+"').";
+		}
+		return false;
+	}
+#ifdef DEBUG_ENABLED
+	*dst=ret;
+#endif
+	state->ip+=4;
+	return true;
+}
+
+bool GDFunction::_process_opcode_assign(ExecState *state) {
+
+	CHECK_SPACE(3);
+	GET_VARIANT_PTR(dst,1);
+	GET_VARIANT_PTR(src,2);
+
+	*dst = *src;
+
+	state->ip+=3;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_assign_true(ExecState *state) {
+
+	CHECK_SPACE(2);
+	GET_VARIANT_PTR(dst,1);
+
+	*dst = true;
+
+	state->ip+=2;
+	return true;
+}
+
+bool GDFunction::_process_opcode_assign_false(ExecState *state) {
+
+	CHECK_SPACE(2);
+	GET_VARIANT_PTR(dst,1);
+
+	*dst = false;
+
+	state->ip+=2;
+	return true;
+}
+
+bool GDFunction::_process_opcode_construct(ExecState *state) {
+
+	CHECK_SPACE(2);
+	Variant::Type t=Variant::Type(_code_ptr[state->ip+1]);
+	int argc=_code_ptr[state->ip+2];
+	CHECK_SPACE(argc+2);
+	Variant **argptrs = state->call_args;
+	for(int i=0;i<argc;i++) {
+		GET_VARIANT_PTR(v,3+i);
+		argptrs[i]=v;
+	}
+
+	GET_VARIANT_PTR(dst,3+argc);
+	Variant::CallError err;
+	*dst = Variant::construct(t,(const Variant**)argptrs,argc,err);
+
+	if (err.error!=Variant::CallError::CALL_OK) {
+
+		state->err_text=_get_call_error(err,"'"+Variant::get_type_name(t)+"' constructor",(const Variant**)argptrs);
+		return false;
+	}
+
+	state->ip+=4+argc;
+	//construct a basic type
+	return true;
+}
+
+bool GDFunction::_process_opcode_construct_array(ExecState *state) {
+
+	CHECK_SPACE(1);
+	int argc=_code_ptr[state->ip+1];
+	Array array(true); //arrays are always shared
+	array.resize(argc);
+	CHECK_SPACE(argc+2);
+
+	for(int i=0;i<argc;i++) {
+		GET_VARIANT_PTR(v,2+i);
+		array[i]=*v;
+
+	}
+
+	GET_VARIANT_PTR(dst,2+argc);
+
+	*dst=array;
+
+	state->ip+=3+argc;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_construct_dictionary(ExecState *state) {
+
+	CHECK_SPACE(1);
+	int argc=_code_ptr[state->ip+1];
+	Dictionary dict(true); //arrays are always shared
+
+	CHECK_SPACE(argc*2+2);
+
+	for(int i=0;i<argc;i++) {
+
+		GET_VARIANT_PTR(k,2+i*2+0);
+		GET_VARIANT_PTR(v,2+i*2+1);
+		dict[*k]=*v;
+
+	}
+
+	GET_VARIANT_PTR(dst,2+argc*2);
+
+	*dst=dict;
+
+	state->ip+=3+argc*2;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_call(ExecState *state) {
+
+
+	CHECK_SPACE(4);
+	bool call_ret = _code_ptr[state->ip]==OPCODE_CALL_RETURN;
+
+	int argc=_code_ptr[state->ip+1];
+	GET_VARIANT_PTR(base,2);
+	int nameg=_code_ptr[state->ip+3];
+
+	ERR_FAIL_COND_V(nameg<0 || nameg>=_global_names_count,false);
+	const StringName *methodname = &_global_names_ptr[nameg];
+
+	ERR_FAIL_COND_V(argc<0,false);
+	state->ip+=4;
+	CHECK_SPACE(argc+1);
+	Variant **argptrs = state->call_args;
+
+	for(int i=0;i<argc;i++) {
+		GET_VARIANT_PTR(v,i);
+		argptrs[i]=v;
+	}
+
+#ifdef DEBUG_ENABLED
+	uint64_t call_time;
+
+	if (GDScriptLanguage::get_singleton()->profiling) {
+		call_time=OS::get_singleton()->get_ticks_usec();
+	}
+
+#endif
+	Variant::CallError err;
+	if (call_ret) {
+
+		GET_VARIANT_PTR(ret,argc);
+		base->call_ptr(*methodname,(const Variant**)argptrs,argc,ret,err);
+	} else {
+
+		base->call_ptr(*methodname,(const Variant**)argptrs,argc,NULL,err);
+	}
+#ifdef DEBUG_ENABLED
+	if (GDScriptLanguage::get_singleton()->profiling) {
+		state->function_call_time+=OS::get_singleton()->get_ticks_usec() - call_time;
+	}
+#endif
+
+	if (err.error!=Variant::CallError::CALL_OK) {
+
+
+		String methodstr = *methodname;
+		String basestr = _get_var_type(base);
+
+		if (methodstr=="call") {
+			if (argc>=1) {
+				methodstr=String(*argptrs[0])+" (via call)";
+				if (err.error==Variant::CallError::CALL_ERROR_INVALID_ARGUMENT) {
+					err.argument-=1;
+				}
+			}
+		} if (methodstr=="free") {
+
+			if (err.error==Variant::CallError::CALL_ERROR_INVALID_METHOD) {
+
+				if (base->is_ref()) {
+					state->err_text="Attempted to free a reference.";
+					return false;
+				} else if (base->get_type()==Variant::OBJECT) {
+
+					state->err_text="Attempted to free a locked object (calling or emitting).";
+					return false;
+				}
+			}
+		}
+		state->err_text=_get_call_error(err,"function '"+methodstr+"' in base '"+basestr+"'",(const Variant**)argptrs);
+		return false;
+	}
+
+	//_call_func(NULL,base,*methodname,ip,argc,p_instance,stack);
+	state->ip+=argc+1;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_call_built_in(ExecState *state) {
+
+	CHECK_SPACE(4);
+
+	GDFunctions::Function func = GDFunctions::Function(_code_ptr[state->ip+1]);
+	int argc=_code_ptr[state->ip+2];
+	ERR_FAIL_COND_V(argc<0,false);
+
+	state->ip+=3;
+	CHECK_SPACE(argc+1);
+	Variant **argptrs = state->call_args;
+
+	for(int i=0;i<argc;i++) {
+		GET_VARIANT_PTR(v,i);
+		argptrs[i]=v;
+	}
+
+	GET_VARIANT_PTR(dst,argc);
+
+	Variant::CallError err;
+
+	GDFunctions::call(func,(const Variant**)argptrs,argc,*dst,err);
+
+	if (err.error!=Variant::CallError::CALL_OK) {
+
+
+		String methodstr = GDFunctions::get_func_name(func);
+		if (dst->get_type()==Variant::STRING) {
+			//call provided error string
+			state->err_text="Error calling built-in function '"+methodstr+"': "+String(*dst);
+		} else {
+			state->err_text=_get_call_error(err,"built-in function '"+methodstr+"'",(const Variant**)argptrs);
+		}
+		return false;
+	}
+	state->ip+=argc+1;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_call_self(ExecState *state) {
+
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_call_self_base(ExecState *state) {
+
+	CHECK_SPACE(2);
+	int self_fun = _code_ptr[state->ip+1];
+#ifdef DEBUG_ENABLED
+
+	if (self_fun<0 || self_fun>=_global_names_count) {
+
+		state->err_text="compiler bug, function name not found";
+		return false;
+	}
+#endif
+	const StringName *methodname = &_global_names_ptr[self_fun];
+
+	int argc=_code_ptr[state->ip+2];
+
+	CHECK_SPACE(2+argc+1);
+
+	Variant **argptrs = state->call_args;
+
+	for(int i=0;i<argc;i++) {
+		GET_VARIANT_PTR(v,i+3);
+		argptrs[i]=v;
+	}
+
+	GET_VARIANT_PTR(dst,argc+3);
+
+	const GDScript *gds = _script;
+
+
+	const Map<StringName,GDFunction*>::Element *E=NULL;
+	while (gds->base.ptr()) {
+		gds=gds->base.ptr();
+		E=gds->member_functions.find(*methodname);
+		if (E)
+			break;
+	}
+
+	Variant::CallError err;
+
+	if (E) {
+
+		*dst=E->get()->call(state->instance,(const Variant**)argptrs,argc,err);
+	} else if (gds->native.ptr()) {
+
+		if (*methodname!=GDScriptLanguage::get_singleton()->strings._init) {
+
+			MethodBind *mb = ObjectTypeDB::get_method(gds->native->get_name(),*methodname);
+			if (!mb) {
+				err.error=Variant::CallError::CALL_ERROR_INVALID_METHOD;
+			} else {
+				*dst=mb->call(state->instance->owner,(const Variant**)argptrs,argc,err);
+			}
+		} else {
+			err.error=Variant::CallError::CALL_OK;
+		}
+	} else {
+
+		if (*methodname!=GDScriptLanguage::get_singleton()->strings._init) {
+			err.error=Variant::CallError::CALL_ERROR_INVALID_METHOD;
+		} else {
+			err.error=Variant::CallError::CALL_OK;
+		}
+	}
+
+
+	if (err.error!=Variant::CallError::CALL_OK) {
+
+
+		String methodstr = *methodname;
+		state->err_text=_get_call_error(err,"function '"+methodstr+"'",(const Variant**)argptrs);
+
+		return false;
+	}
+
+	state->ip+=4+argc;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_yield(ExecState *state) {
+
+	int ipofs=1;
+	if (_code_ptr[state->ip]==OPCODE_YIELD_SIGNAL) {
+		CHECK_SPACE(4);
+		ipofs+=2;
+	} else {
+		CHECK_SPACE(2);
+
+	}
+
+	Ref<GDFunctionState> gdfs = memnew( GDFunctionState );
+	gdfs->function=this;
+
+	gdfs->state.stack.resize(state->alloca_size);
+	//copy variant stack
+	for(int i=0;i<_stack_size;i++) {
+		memnew_placement(&gdfs->state.stack[sizeof(Variant)*i],Variant(state->stack[i]));
+	}
+	gdfs->state.stack_size=_stack_size;
+	gdfs->state.self=state->self;
+	gdfs->state.alloca_size=state->alloca_size;
+	gdfs->state._class=state->_class;
+	gdfs->state.ip=state->ip+ipofs;
+	gdfs->state.line=state->line;
+	gdfs->state.instance_id=(state->instance && state->instance->get_owner())?state->instance->get_owner()->get_instance_ID():0;
+	gdfs->state.script_id=state->_class->get_instance_ID();
+	//gdfs->state.result_pos=ip+ipofs-1;
+	gdfs->state.defarg=state->defarg;
+	gdfs->state.instance=state->instance;
+	gdfs->function=this;
+
+	state->result=gdfs;
+
+	if (_code_ptr[state->ip]==OPCODE_YIELD_SIGNAL) {
+		GET_VARIANT_PTR(argobj,1);
+		GET_VARIANT_PTR(argname,2);
+		//do the oneshot connect
+
+		if (argobj->get_type()!=Variant::OBJECT) {
+			state->err_text="First argument of yield() not of type object.";
+			return false;
+		}
+		if (argname->get_type()!=Variant::STRING) {
+			state->err_text="Second argument of yield() not a string (for signal name).";
+			return false;
+		}
+		Object *obj=argobj->operator Object *();
+		String signal = argname->operator String();
+#ifdef DEBUG_ENABLED
+
+		if (!obj) {
+			state->err_text="First argument of yield() is null.";
+			return false;
+		}
+		if (ScriptDebugger::get_singleton()) {
+			if (!ObjectDB::instance_validate(obj)) {
+				state->err_text="First argument of yield() is a previously freed instance.";
+				return false;
+			}
+		}
+		if (signal.length()==0) {
+
+			state->err_text="Second argument of yield() is an empty string (for signal name).";
+			return false;
+		}
+
+#endif
+		Error err = obj->connect(signal,gdfs.ptr(),"_signal_callback",varray(gdfs),Object::CONNECT_ONESHOT);
+		if (err!=OK) {
+			state->err_text="Error connecting to signal: "+signal+" during yield().";
+			return false;
+		}
+
+
+	}
+
+	state->exit_ok=true;
+
+	return false;
+}
+
+bool GDFunction::_process_opcode_yield_resume(ExecState *state) {
+
+	CHECK_SPACE(2);
+	if (!state->call_state) {
+		state->err_text=("Invalid Resume (bug?)");
+		return false;
+	}
+	GET_VARIANT_PTR(result,1);
+	*result=state->call_state->result;
+	state->ip+=2;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_jump(ExecState *state) {
+
+	CHECK_SPACE(2);
+	int to = _code_ptr[state->ip+1];
+
+	ERR_FAIL_COND_V(to<0 || to>_code_size,false);
+	state->ip=to;
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_jump_if(ExecState *state) {
+
+	CHECK_SPACE(3);
+
+	GET_VARIANT_PTR(test,1);
+
+	bool valid;
+	bool result = test->booleanize(valid);
+#ifdef DEBUG_ENABLED
+	if (!valid) {
+
+		state->err_text="cannot evaluate conditional expression of type: "+Variant::get_type_name(test->get_type());
+		return false;
+	}
+#endif
+	if (result) {
+		int to = _code_ptr[state->ip+2];
+		ERR_FAIL_COND_V(to<0 || to>_code_size,false);
+		state->ip=to;
+		return true;
+	}
+	state->ip+=3;
+	return true;
+}
+
+bool GDFunction::_process_opcode_jump_if_not(ExecState *state) {
+
+	CHECK_SPACE(3);
+
+	GET_VARIANT_PTR(test,1);
+
+	bool valid;
+	bool result = test->booleanize(valid);
+#ifdef DEBUG_ENABLED
+	if (!valid) {
+
+		state->err_text="cannot evaluate conditional expression of type: "+Variant::get_type_name(test->get_type());
+		return false;
+	}
+#endif
+	if (!result) {
+		int to = _code_ptr[state->ip+2];
+		ERR_FAIL_COND_V(to<0 || to>_code_size,false);
+		state->ip=to;
+		return true;
+	}
+	state->ip+=3;
+	return true;
+}
+
+bool GDFunction::_process_opcode_jump_to_def_argument(ExecState *state) {
+
+	CHECK_SPACE(2);
+	state->ip=_default_arg_ptr[state->defarg];
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_return(ExecState *state) {
+
+	CHECK_SPACE(2);
+	GET_VARIANT_PTR(r,1);
+	state->result=*r;
+	state->exit_ok=true;
+
+	return false;
+}
+
+bool GDFunction::_process_opcode_iterate_begin(ExecState *state) {
+
+	CHECK_SPACE(8); //space for this an regular iterate
+
+	GET_VARIANT_PTR(counter,1);
+	GET_VARIANT_PTR(container,2);
+
+	bool valid;
+	if (!container->iter_init(*counter,valid)) {
+		if (!valid) {
+			state->err_text="Unable to iterate on object of type  "+Variant::get_type_name(container->get_type())+"'.";
+			return false;
+		}
+		int jumpto=_code_ptr[state->ip+3];
+		ERR_FAIL_COND_V(jumpto<0 || jumpto>_code_size,false);
+		state->ip=jumpto;
+		return true;
+	}
+	GET_VARIANT_PTR(iterator,4);
+
+
+	*iterator=container->iter_get(*counter,valid);
+	if (!valid) {
+		state->err_text="Unable to obtain iterator object of type  "+Variant::get_type_name(container->get_type())+"'.";
+		return false;
+	}
+
+
+	state->ip+=5; //skip regular iterate which is always next
+
+	return true;
+}
+
+bool GDFunction::_process_opcode_iterate(ExecState *state) {
+
+	CHECK_SPACE(4);
+
+	GET_VARIANT_PTR(counter,1);
+	GET_VARIANT_PTR(container,2);
+
+	bool valid;
+	if (!container->iter_next(*counter,valid)) {
+		if (!valid) {
+			state->err_text="Unable to iterate on object of type  "+Variant::get_type_name(container->get_type())+"' (type changed since first iteration?).";
+			return false;
+		}
+		int jumpto=_code_ptr[state->ip+3];
+		ERR_FAIL_COND_V(jumpto<0 || jumpto>_code_size,false);
+		state->ip=jumpto;
+		return true;
+	}
+	GET_VARIANT_PTR(iterator,4);
+
+	*iterator=container->iter_get(*counter,valid);
+	if (!valid) {
+		state->err_text="Unable to obtain iterator object of type  "+Variant::get_type_name(container->get_type())+"' (but was obtained on first iteration?).";
+		return false;
+	}
+
+	state->ip+=5; //loop again
+	return true;
+}
+
+bool GDFunction::_process_opcode_assert(ExecState *state) {
+	CHECK_SPACE(2);
+	GET_VARIANT_PTR(test,1);
+
+#ifdef DEBUG_ENABLED
+	bool valid;
+	bool result = test->booleanize(valid);
+
+
+	if (!valid) {
+
+		state->err_text="cannot evaluate conditional expression of type: "+Variant::get_type_name(test->get_type());
+		return false;
+	}
+
+
+	if (!result) {
+
+		state->err_text="Assertion failed.";
+		return false;
+	}
+
+#endif
+
+	state->ip+=2;
+	return true;
+}
+
+bool GDFunction::_process_opcode_breakpoint(ExecState *state) {
+#ifdef DEBUG_ENABLED
+	if (ScriptDebugger::get_singleton()) {
+		GDScriptLanguage::get_singleton()->debug_break("Breakpoint Statement",true);
+	}
+#endif
+	state->ip+=1;
+	return true;
+}
+
+bool GDFunction::_process_opcode_line(ExecState *state) {
+	CHECK_SPACE(2);
+
+	state->line=_code_ptr[state->ip+1];
+	state->ip+=2;
+
+	if (ScriptDebugger::get_singleton()) {
+		// state->line
+		bool do_break=false;
+
+		if (ScriptDebugger::get_singleton()->get_lines_left()>0) {
+
+			if (ScriptDebugger::get_singleton()->get_depth()<=0)
+				ScriptDebugger::get_singleton()->set_lines_left( ScriptDebugger::get_singleton()->get_lines_left() -1 );
+			if (ScriptDebugger::get_singleton()->get_lines_left()<=0)
+				do_break=true;
+		}
+
+		if (ScriptDebugger::get_singleton()->is_breakpoint(state->line,source))
+			do_break=true;
+
+		if (do_break) {
+			GDScriptLanguage::get_singleton()->debug_break("Breakpoint",true);
+		}
+
+		ScriptDebugger::get_singleton()->line_poll();
+
+	}
+	return true;
+}
+
+bool GDFunction::_process_opcode_end(ExecState *state) {
+
+	state->exit_ok=true;
+
+	return false;
+}
+
+bool GDFunction::_process_opcode_invalid(ExecState *state) {
+
+	state->err_text="Illegal opcode "+itos(_code_ptr[state->ip])+" at address "+itos(state->ip);
+	return false;
 }
 
 const int* GDFunction::get_code() const {

@@ -119,6 +119,39 @@ friend class GDCompiler;
 	_FORCE_INLINE_ Variant *_get_variant(int p_address,GDInstance *p_instance,GDScript *p_script,Variant &self,Variant *p_stack,String& r_error) const;
 	_FORCE_INLINE_ String _get_call_error(const Variant::CallError& p_err, const String& p_where,const Variant**argptrs) const;
 
+	struct ExecState;
+
+	_FORCE_INLINE_ bool _process_opcode_operator(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_extends_test(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_set(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_get(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_set_named(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_get_named(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_assign(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_assign_true(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_assign_false(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_construct(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_construct_array(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_construct_dictionary(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_call(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_call_built_in(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_call_self(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_call_self_base(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_yield(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_yield_resume(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_jump(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_jump_if(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_jump_if_not(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_jump_to_def_argument(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_return(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_iterate_begin(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_iterate(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_assert(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_breakpoint(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_line(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_end(ExecState *state);
+	_FORCE_INLINE_ bool _process_opcode_invalid(ExecState *state);
+
 friend class GDScriptLanguage;
 
 	SelfList<GDFunction> function_list;
@@ -161,6 +194,17 @@ public:
 		int defarg;
 		Variant result;
 
+	};
+
+	struct ExecState : CallState {
+		String err_text;
+		Variant *stack;
+		Variant **call_args;
+		bool exit_ok;
+		CallState *call_state;
+#ifdef DEBUG_ENABLED
+		uint64_t function_call_time;
+#endif
 	};
 
 	_FORCE_INLINE_ bool is_static() const { return _static; }
