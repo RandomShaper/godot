@@ -139,6 +139,13 @@ static String _get_var_type(const Variant* p_type) {
 
 }
 
+#ifdef SLJIT_ENABLED
+Error GDFunction::generate_machine_code(sljit_compiler* sljit)
+{
+	return OK;
+}
+#endif
+
 Variant GDFunction::call(GDInstance *p_instance, const Variant **p_args, int p_argcount, Variant::CallError& r_err, CallState *p_state) {
 
 
@@ -1450,6 +1457,12 @@ void GDFunction::clear() {
 	_code_ptr=NULL;
 	_code_size=0;
 
+#ifdef SLJIT_ENABLED
+	if (machine_code) {
+		sljit_free_code(machine_code);
+		machine_code=NULL;
+	}
+#endif
 }
 #endif
 GDFunction::GDFunction() : function_list(this) {
@@ -1481,6 +1494,10 @@ GDFunction::GDFunction() : function_list(this) {
 	profile.last_frame_total_time=0;
 
 #endif
+
+#ifdef SLJIT_ENABLED
+	machine_code=NULL;
+#endif
 }
 
 GDFunction::~GDFunction()  {
@@ -1492,6 +1509,11 @@ GDFunction::~GDFunction()  {
 
 	if (GDScriptLanguage::get_singleton()->lock) {
 		GDScriptLanguage::get_singleton()->lock->unlock();
+	}
+#endif
+#ifdef SLJIT_ENABLED
+	if (machine_code) {
+		sljit_free_code(machine_code);
 	}
 #endif
 }

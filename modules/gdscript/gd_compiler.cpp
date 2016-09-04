@@ -1414,6 +1414,12 @@ Error GDCompiler::_parse_function(GDScript *p_script,const GDParser::ClassNode *
 		p_script->initializer=gdfunc;
 
 
+#ifdef SLJIT_ENABLED
+	Error err = gdfunc->generate_machine_code(sljit);
+	if (err)
+		return err;
+#endif
+
 	return OK;
 }
 
@@ -1874,6 +1880,14 @@ int GDCompiler::get_error_column() const{
 
 GDCompiler::GDCompiler()
 {
+#ifdef SLJIT_ENABLED
+	sljit = sljit_create_compiler(NULL);
+#endif
 }
 
-
+GDCompiler::~GDCompiler()
+{
+#ifdef SLJIT_ENABLED
+	sljit_free_compiler(sljit);
+#endif
+}

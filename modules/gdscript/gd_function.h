@@ -9,6 +9,14 @@
 #include "reference.h"
 #include "script_language.h"
 
+#ifdef SLJIT_ENABLED
+extern "C" {
+#include "drivers/sljit/sljit_src/sljitLir.h"
+}
+#else
+#define SLJIT_CALL
+#endif
+
 class GDInstance;
 class GDScript;
 
@@ -110,6 +118,10 @@ friend class GDCompiler;
 	Vector<int> default_arguments;
 	Vector<int> code;
 
+#ifdef SLJIT_ENABLED
+	void* machine_code;
+#endif
+
 #ifdef TOOLS_ENABLED
 	Vector<StringName> arg_names;
 #endif
@@ -121,36 +133,36 @@ friend class GDCompiler;
 
 	struct ExecState;
 
-	_FORCE_INLINE_ bool _process_opcode_operator(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_extends_test(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_set(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_get(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_set_named(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_get_named(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_assign(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_assign_true(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_assign_false(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_construct(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_construct_array(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_construct_dictionary(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_call(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_call_built_in(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_call_self(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_call_self_base(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_yield(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_yield_resume(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_jump(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_jump_if(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_jump_if_not(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_jump_to_def_argument(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_return(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_iterate_begin(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_iterate(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_assert(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_breakpoint(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_line(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_end(ExecState *state);
-	_FORCE_INLINE_ bool _process_opcode_invalid(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_operator(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_extends_test(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_set(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_get(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_set_named(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_get_named(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_assign(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_assign_true(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_assign_false(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_construct(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_construct_array(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_construct_dictionary(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_call(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_call_built_in(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_call_self(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_call_self_base(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_yield(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_yield_resume(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_jump(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_jump_if(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_jump_if_not(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_jump_to_def_argument(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_return(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_iterate_begin(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_iterate(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_assert(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_breakpoint(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_line(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_end(ExecState *state);
+	_FORCE_INLINE_ bool SLJIT_CALL _process_opcode_invalid(ExecState *state);
 
 friend class GDScriptLanguage;
 
@@ -238,6 +250,9 @@ public:
 		return default_arguments[p_idx];
 	}
 
+#ifdef SLJIT_ENABLED
+	Error generate_machine_code(sljit_compiler* sljit);
+#endif
 	Variant call(GDInstance *p_instance,const Variant **p_args, int p_argcount,Variant::CallError& r_err,CallState *p_state=NULL);
 
 	_FORCE_INLINE_ ScriptInstance::RPCMode get_rpc_mode() const { return rpc_mode; }

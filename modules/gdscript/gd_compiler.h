@@ -32,6 +32,12 @@
 #include "gd_parser.h"
 #include "gd_script.h"
 
+#ifdef SLJIT_ENABLED
+extern "C" {
+#include "drivers/sljit/sljit_src/sljitLir.h"
+}
+#endif
+
 
 class GDCompiler {
 
@@ -123,6 +129,10 @@ class GDCompiler {
 		int call_max;
 	};
 
+#ifdef SLJIT_ENABLED
+	sljit_compiler* sljit;
+#endif
+
 #if 0
 	void _create_index(const GDParser::OperatorNode *on);
 	void _create_call(const GDParser::OperatorNode *on);
@@ -159,6 +169,7 @@ public:
 	int get_error_column() const;
 
 	GDCompiler();
+	~GDCompiler();
 };
 
 
