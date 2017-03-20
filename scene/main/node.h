@@ -29,6 +29,7 @@
 #ifndef NODE_H
 #define NODE_H
 
+#include "globals.h"
 #include "map.h"
 #include "object.h"
 #include "object_type_db.h"
@@ -126,7 +127,8 @@ private:
 
 	void _replace_connections_target(Node *p_new_target);
 
-	void _validate_child_name(Node *p_name, bool p_force_human_readable = false);
+	void _validate_child_name(Node *p_child, bool p_force_human_readable = false);
+	String _generate_serial_child_name(Node *p_child);
 
 	void _propagate_reverse_notification(int p_notification);
 	void _propagate_deferred_notification(int p_notification, bool p_reverse);
@@ -163,6 +165,7 @@ protected:
 	void _propagate_replace_owner(Node *p_owner, Node *p_by_owner);
 
 	static void _bind_methods();
+	static String _get_name_num_separator();
 
 	friend class SceneState;
 
@@ -303,7 +306,9 @@ public:
 
 	static void print_stray_nodes();
 
-	String validate_child_name(const String &p_name) const;
+#ifdef TOOLS_ENABLED
+	String validate_child_name(Node *p_child);
+#endif
 
 	void queue_delete();
 
