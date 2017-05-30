@@ -11,7 +11,8 @@ precision mediump int;
 uniform highp mat4 projection_matrix;
 uniform highp mat4 modelview_matrix;
 uniform highp mat4 extra_matrix;
-attribute highp vec3 vertex; // attrib:0
+uniform highp float z;
+attribute highp vec2 vertex; // attrib:0
 attribute vec4 color_attrib; // attrib:3
 attribute highp vec2 uv_attrib; // attrib:4
 
@@ -59,8 +60,8 @@ VERTEX_SHADER_GLOBALS
 void main() {
 
 	color_interp = color_attrib;
-	uv_interp = uv_attrib;		
-        highp vec4 outvec = vec4(vertex, 1.0);
+	uv_interp = uv_attrib;
+        highp vec4 outvec = vec4(vertex, 0.0, 1.0);
 {
         vec2 src_vtx=outvec.xy;
 VERTEX_SHADER_CODE
@@ -80,6 +81,7 @@ VERTEX_SHADER_CODE
 
 
 	gl_Position = projection_matrix * outvec;
+	gl_Position.z = z;
 
 #ifdef USE_LIGHTING
 
@@ -397,6 +399,10 @@ LIGHT_SHADER_CODE
 #endif
 	}
 
+#else
+	if (color.a < 0.007) {
+		discard;
+	}
 //use lighting
 #endif
 //	color.rgb*=color.a;

@@ -7493,7 +7493,11 @@ void RasterizerGLES2::canvas_begin() {
 	}
 
 	glDisable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_ALWAYS);
+	glDepthMask(GL_TRUE);
+	_glClearDepth(0.0f);
+	glClear(GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_SCISSOR_TEST);
 #ifdef GLEW_ENABLED
 	glDisable(GL_POINT_SPRITE);
@@ -8822,9 +8826,8 @@ void RasterizerGLES2::canvas_render_items(CanvasItem *p_item_list, int p_z, cons
 	bool reset_modulate = false;
 	bool prev_distance_field = false;
 
-	while (p_item_list) {
-
-		CanvasItem *ci = p_item_list;
+	int i = 0;
+	for (CanvasItem *ci = p_item_list; ci; ci = ci->next, ++i) {
 
 		if (ci->vp_render) {
 			if (draw_viewport_func) {
@@ -8857,14 +8860,7 @@ void RasterizerGLES2::canvas_render_items(CanvasItem *p_item_list, int p_z, cons
 			if (current_clip) {
 
 				glEnable(GL_SCISSOR_TEST);
-				//glScissor(viewport.x+current_clip->final_clip_rect.pos.x,viewport.y+ (viewport.height-(current_clip->final_clip_rect.pos.y+current_clip->final_clip_rect.size.height)),
-				//current_clip->final_clip_rect.size.width,current_clip->final_clip_rect.size.height);
 
-				/*				int x = viewport.x+current_clip->final_clip_rect.pos.x;
-				int y = window_size.height-(viewport.y+current_clip->final_clip_rect.pos.y+current_clip->final_clip_rect.size.y);
-				int w = current_clip->final_clip_rect.size.x;
-				int h = current_clip->final_clip_rect.size.y;
-*/
 				int x;
 				int y;
 				int w;
@@ -8951,6 +8947,7 @@ void RasterizerGLES2::canvas_render_items(CanvasItem *p_item_list, int p_z, cons
 			}
 
 			canvas_shader.set_uniform(CanvasShaderGLES2::PROJECTION_MATRIX, canvas_transform);
+
 			if (canvas_use_modulate)
 				reset_modulate = true;
 			canvas_last_material = material;
@@ -9016,20 +9013,177 @@ void RasterizerGLES2::canvas_render_items(CanvasItem *p_item_list, int p_z, cons
 
 		canvas_opacity = ci->final_opacity;
 
-		if (unshaded || (p_modulate.a > 0.001 && (!material || material->shading_mode != VS::CANVAS_ITEM_SHADING_ONLY_LIGHT) && !ci->light_masked))
+		if (unshaded || (p_modulate.a > 0.001 && (!material || material->shading_mode != VS::CANVAS_ITEM_SHADING_ONLY_LIGHT) && !ci->light_masked)) {
+			canvas_shader.set_uniform(CanvasShaderGLES2::Z, i / 16384.0f);
 			_canvas_item_render_commands<false>(ci, current_clip, reclip);
+		}
 
-		if (canvas_blend_mode == VS::MATERIAL_BLEND_MODE_MIX && p_light && !unshaded) {
+		if (reclip) {
+
+			glEnable(GL_SCISSOR_TEST);
+
+			int x;
+			int y;
+			int w;
+			int h;
+
+			if (current_rt) {
+				x = current_clip->final_clip_rect.pos.x;
+				y = current_clip->final_clip_rect.pos.y;
+				w = current_clip->final_clip_rect.size.x;
+				h = current_clip->final_clip_rect.size.y;
+			} else {
+				x = current_clip->final_clip_rect.pos.x;
+				y = window_size.height - (current_clip->final_clip_rect.pos.y + current_clip->final_clip_rect.size.y);
+				w = current_clip->final_clip_rect.size.x;
+				h = current_clip->final_clip_rect.size.y;
+			}
+
+			glScissor(x, y, w, h);
+		}
+	}
+
+	if (current_clip) {
+		glDisable(GL_SCISSOR_TEST);
+	}
+}
+
+void RasterizerGLES2::canvas_render_items_light(CanvasItem *p_item_list, int p_z, const Color &p_modulate, CanvasLight *p_light) {
+
+	if (!p_light)
+		return;
+
+	CanvasItem *current_clip = NULL;
+	Shader *shader_cache = NULL;
+
+	bool rebind_shader = true;
+
+	canvas_opacity = 1.0;
+	canvas_use_modulate = p_modulate != Color(1, 1, 1, 1);
+	canvas_modulate = p_modulate;
+	canvas_shader.set_conditional(CanvasShaderGLES2::USE_MODULATE, canvas_use_modulate);
+	canvas_shader.set_conditional(CanvasShaderGLES2::USE_DISTANCE_FIELD, false);
+
+	bool reset_modulate = false;
+	bool prev_distance_field = false;
+
+	bool light_used = false;
+	VS::CanvasLightMode mode = VS::CANVAS_LIGHT_MODE_ADD;
+
+	int64_t last_tex = -1;
+
+	int i = 0;
+	for (CanvasItem *ci = p_item_list; ci; ci = ci->next, ++i) {
+
+		CanvasItem *material_owner = ci->material_owner ? ci->material_owner : ci;
+		CanvasItemMaterial *material = material_owner->material;
+
+		bool unshaded = (material && material->shading_mode == VS::CANVAS_ITEM_SHADING_UNSHADED) || ci->blend_mode != VS::MATERIAL_BLEND_MODE_MIX;
+
+		if (!unshaded) {
 
 			CanvasLight *light = p_light;
-			bool light_used = false;
-			VS::CanvasLightMode mode = VS::CANVAS_LIGHT_MODE_ADD;
+			bool light_used_for_curr = false;
 
 			while (light) {
+
+				bool reclip = false;
 
 				if (ci->light_mask & light->item_mask && p_z >= light->z_min && p_z <= light->z_max && ci->global_rect_cache.intersects_transformed(light->xform_cache, light->rect_cache)) {
 
 					//intersects this light
+					if (!light_used_for_curr) {
+
+						canvas_opacity = ci->final_opacity;
+
+						if (prev_distance_field != ci->distance_field) {
+
+							canvas_shader.set_conditional(CanvasShaderGLES2::USE_DISTANCE_FIELD, ci->distance_field);
+							prev_distance_field = ci->distance_field;
+							rebind_shader = true;
+						}
+
+						if (current_clip != ci->final_clip_owner) {
+
+							current_clip = ci->final_clip_owner;
+
+							//setup clip
+							if (current_clip) {
+
+								glEnable(GL_SCISSOR_TEST);
+
+								int x;
+								int y;
+								int w;
+								int h;
+
+								if (current_rt) {
+									x = current_clip->final_clip_rect.pos.x;
+									y = current_clip->final_clip_rect.pos.y;
+									w = current_clip->final_clip_rect.size.x;
+									h = current_clip->final_clip_rect.size.y;
+								} else {
+									x = current_clip->final_clip_rect.pos.x;
+									y = window_size.height - (current_clip->final_clip_rect.pos.y + current_clip->final_clip_rect.size.y);
+									w = current_clip->final_clip_rect.size.x;
+									h = current_clip->final_clip_rect.size.y;
+								}
+
+								glScissor(x, y, w, h);
+
+							} else {
+
+								glDisable(GL_SCISSOR_TEST);
+							}
+						}
+
+						//begin rect
+
+						if (material != canvas_last_material || rebind_shader) {
+
+							Shader *shader = NULL;
+							if (material && material->shader.is_valid()) {
+								shader = shader_owner.get(material->shader);
+								if (shader && !shader->valid) {
+									shader = NULL;
+								}
+							}
+
+							shader_cache = shader;
+
+							if (shader) {
+								canvas_shader.set_custom_shader(shader->custom_code_id);
+								_canvas_item_setup_shader_params(material, shader);
+							} else {
+								shader_cache = NULL;
+								canvas_shader.set_custom_shader(0);
+								canvas_shader.bind();
+								uses_texpixel_size = false;
+							}
+
+							canvas_shader.set_uniform(CanvasShaderGLES2::PROJECTION_MATRIX, canvas_transform);
+
+							if (canvas_use_modulate)
+								reset_modulate = true;
+							canvas_last_material = material;
+							rebind_shader = false;
+						}
+
+						if (material && shader_cache) {
+
+							_canvas_item_setup_shader_uniforms(material, shader_cache);
+						}
+
+						if (reset_modulate) {
+							canvas_shader.set_uniform(CanvasShaderGLES2::MODULATE, canvas_modulate);
+							reset_modulate = false;
+						}
+
+						canvas_shader.set_uniform(CanvasShaderGLES2::MODELVIEW_MATRIX, ci->final_transform);
+						canvas_shader.set_uniform(CanvasShaderGLES2::EXTRA_MATRIX, Matrix32());
+
+						light_used_for_curr = true;
+					}
 
 					if (!light_used || mode != light->mode) {
 
@@ -9057,10 +9211,13 @@ void RasterizerGLES2::canvas_render_items(CanvasItem *p_item_list, int p_z, cons
 
 					if (!light_used) {
 
+						glDepthFunc(GL_EQUAL);
+						glDepthMask(GL_FALSE);
 						canvas_shader.set_conditional(CanvasShaderGLES2::USE_LIGHTING, true);
 						canvas_shader.set_conditional(CanvasShaderGLES2::USE_MODULATE, false);
 						light_used = true;
 						normal_flip = Vector2(1, 1);
+						glActiveTexture(GL_TEXTURE0 + max_texture_units - 2);
 					}
 
 					bool has_shadow = light->shadow_buffer.is_valid() && ci->light_mask & light->item_shadow_mask;
@@ -9083,6 +9240,7 @@ void RasterizerGLES2::canvas_render_items(CanvasItem *p_item_list, int p_z, cons
 							canvas_shader.set_uniform(CanvasShaderGLES2::MODULATE, canvas_modulate);
 						canvas_shader.set_uniform(CanvasShaderGLES2::NORMAL_FLIP, Vector2(1, 1));
 						canvas_shader.set_uniform(CanvasShaderGLES2::SHADOWPIXEL_SIZE, 1.0 / light->shadow_buffer_size);
+						canvas_shader.set_uniform(CanvasShaderGLES2::LIGHT_TEXTURE, max_texture_units - 2);
 					}
 
 					canvas_shader.set_uniform(CanvasShaderGLES2::LIGHT_MATRIX, light->light_shader_xform);
@@ -9105,79 +9263,84 @@ void RasterizerGLES2::canvas_render_items(CanvasItem *p_item_list, int p_z, cons
 						canvas_shader.set_uniform(CanvasShaderGLES2::SHADOW_MATRIX, light->shadow_matrix_cache);
 						canvas_shader.set_uniform(CanvasShaderGLES2::SHADOW_ESM_MULTIPLIER, light->shadow_esm_mult);
 						canvas_shader.set_uniform(CanvasShaderGLES2::LIGHT_SHADOW_COLOR, light->shadow_color);
+						glActiveTexture(GL_TEXTURE0 + max_texture_units - 2);
 					}
 
-					glActiveTexture(GL_TEXTURE0 + max_texture_units - 2);
-					canvas_shader.set_uniform(CanvasShaderGLES2::LIGHT_TEXTURE, max_texture_units - 2);
 					Texture *t = texture_owner.get(light->texture);
-					if (!t) {
-						glBindTexture(GL_TEXTURE_2D, white_tex);
+					GLuint new_tex;
+					if (t) {
+						new_tex = t->tex_id;
 					} else {
-
-						glBindTexture(t->target, t->tex_id);
+						new_tex = white_tex;
+					}
+					if (last_tex != new_tex) {
+						glActiveTexture(GL_TEXTURE0 + max_texture_units - 2);
+						glBindTexture(GL_TEXTURE_2D, new_tex);
+						last_tex = new_tex;
 					}
 
 					glActiveTexture(GL_TEXTURE0);
+					canvas_shader.set_uniform(CanvasShaderGLES2::Z, i / 16384.0f);
 					_canvas_item_render_commands<true>(ci, current_clip, reclip); //redraw using light
+				}
+
+				if (reclip) {
+
+					glEnable(GL_SCISSOR_TEST);
+
+					int x;
+					int y;
+					int w;
+					int h;
+
+					if (current_rt) {
+						x = current_clip->final_clip_rect.pos.x;
+						y = current_clip->final_clip_rect.pos.y;
+						w = current_clip->final_clip_rect.size.x;
+						h = current_clip->final_clip_rect.size.y;
+					} else {
+						x = current_clip->final_clip_rect.pos.x;
+						y = window_size.height - (current_clip->final_clip_rect.pos.y + current_clip->final_clip_rect.size.y);
+						w = current_clip->final_clip_rect.size.x;
+						h = current_clip->final_clip_rect.size.y;
+					}
+
+					glScissor(x, y, w, h);
 				}
 
 				light = light->next_ptr;
 			}
+		}
+	}
 
-			if (light_used) {
+	if (light_used) {
 
-				canvas_shader.set_conditional(CanvasShaderGLES2::USE_LIGHTING, false);
-				canvas_shader.set_conditional(CanvasShaderGLES2::USE_MODULATE, canvas_use_modulate);
-				canvas_shader.set_conditional(CanvasShaderGLES2::USE_SHADOWS, false);
+		canvas_shader.set_conditional(CanvasShaderGLES2::USE_LIGHTING, false);
+		canvas_shader.set_conditional(CanvasShaderGLES2::USE_MODULATE, canvas_use_modulate);
+		canvas_shader.set_conditional(CanvasShaderGLES2::USE_SHADOWS, false);
 
-				canvas_shader.bind();
+		canvas_shader.bind();
 
-				if (material && shader_cache) {
-					_canvas_item_setup_shader_params(material, shader_cache);
-					_canvas_item_setup_shader_uniforms(material, shader_cache);
-				}
-
-				canvas_shader.set_uniform(CanvasShaderGLES2::MODELVIEW_MATRIX, ci->final_transform);
-				canvas_shader.set_uniform(CanvasShaderGLES2::EXTRA_MATRIX, Matrix32());
-				if (canvas_use_modulate)
-					canvas_shader.set_uniform(CanvasShaderGLES2::MODULATE, canvas_modulate);
-
-				glBlendEquation(GL_FUNC_ADD);
-				if (current_rt && current_rt_transparent) {
-					glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-				} else {
-					glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				}
-			}
+		/*if (material && shader_cache) {
+			_canvas_item_setup_shader_params(material, shader_cache);
+			_canvas_item_setup_shader_uniforms(material, shader_cache);
 		}
 
-		if (reclip) {
+		canvas_shader.set_uniform(CanvasShaderGLES2::MODELVIEW_MATRIX, ci->final_transform);
+		canvas_shader.set_uniform(CanvasShaderGLES2::EXTRA_MATRIX, Matrix32());*/
+		if (canvas_use_modulate)
+			canvas_shader.set_uniform(CanvasShaderGLES2::MODULATE, canvas_modulate);
 
-			glEnable(GL_SCISSOR_TEST);
-			//glScissor(viewport.x+current_clip->final_clip_rect.pos.x,viewport.y+ (viewport.height-(current_clip->final_clip_rect.pos.y+current_clip->final_clip_rect.size.height)),
-			//current_clip->final_clip_rect.size.width,current_clip->final_clip_rect.size.height);
-
-			int x;
-			int y;
-			int w;
-			int h;
-
-			if (current_rt) {
-				x = current_clip->final_clip_rect.pos.x;
-				y = current_clip->final_clip_rect.pos.y;
-				w = current_clip->final_clip_rect.size.x;
-				h = current_clip->final_clip_rect.size.y;
-			} else {
-				x = current_clip->final_clip_rect.pos.x;
-				y = window_size.height - (current_clip->final_clip_rect.pos.y + current_clip->final_clip_rect.size.y);
-				w = current_clip->final_clip_rect.size.x;
-				h = current_clip->final_clip_rect.size.y;
-			}
-
-			glScissor(x, y, w, h);
+		glBlendEquation(GL_FUNC_ADD);
+		if (current_rt && current_rt_transparent) {
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		} else {
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
-		p_item_list = p_item_list->next;
+		glActiveTexture(GL_TEXTURE0);
+		glDepthMask(GL_TRUE);
+		glDepthFunc(GL_ALWAYS);
 	}
 
 	if (current_clip) {

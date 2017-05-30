@@ -1609,6 +1609,7 @@ public:
 	virtual void canvas_set_transform(const Matrix32 &p_transform);
 
 	virtual void canvas_render_items(CanvasItem *p_item_list, int p_z, const Color &p_modulate, CanvasLight *p_light);
+	void canvas_render_items_light(CanvasItem *p_item_list, int p_z, const Color &p_modulate, CanvasLight *p_light);
 	virtual void canvas_debug_viewport_shadows(CanvasLight *p_lights_with_shadow);
 
 	/* CANVAS LIGHT SHADOW */

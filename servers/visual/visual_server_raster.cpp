@@ -6286,6 +6286,8 @@ void VisualServerRaster::_render_camera(Viewport *p_viewport, Camera *p_camera, 
 	rasterizer->end_scene();
 }
 
+#include "drivers/gles2/rasterizer_gles2.h"
+
 void VisualServerRaster::_render_canvas_item_tree(CanvasItem *p_canvas_item, const Matrix32 &p_transform, const Rect2 &p_clip_rect, const Color &p_modulate, Rasterizer::CanvasLight *p_lights) {
 
 	static const int z_range = CANVAS_ITEM_Z_MAX - CANVAS_ITEM_Z_MIN + 1;
@@ -6303,6 +6305,7 @@ void VisualServerRaster::_render_canvas_item_tree(CanvasItem *p_canvas_item, con
 		if (!z_list[i])
 			continue;
 		rasterizer->canvas_render_items(z_list[i], CANVAS_ITEM_Z_MIN + i, p_modulate, p_lights);
+		static_cast<RasterizerGLES2 *>(rasterizer)->canvas_render_items_light(z_list[i], CANVAS_ITEM_Z_MIN + i, p_modulate, p_lights);
 	}
 }
 
@@ -6497,6 +6500,7 @@ void VisualServerRaster::_render_canvas(Canvas *p_canvas, const Matrix32 &p_tran
 			}
 
 			rasterizer->canvas_render_items(z_list[i], CANVAS_ITEM_Z_MIN + i, p_canvas->modulate, p_lights);
+			static_cast<RasterizerGLES2 *>(rasterizer)->canvas_render_items_light(z_list[i], CANVAS_ITEM_Z_MIN + i, p_canvas->modulate, p_lights);
 		}
 	} else {
 
