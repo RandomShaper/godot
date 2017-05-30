@@ -831,6 +831,7 @@ class RasterizerGLES2 : public Rasterizer {
 
 	GLuint gui_quad_buffer;
 	GLuint indices_buffer;
+	int enabled_vertex_arrays;
 
 	struct RenderList {
 
@@ -1293,6 +1294,9 @@ class RasterizerGLES2 : public Rasterizer {
 	_FORCE_INLINE_ void _canvas_item_render_commands(CanvasItem *p_item, CanvasItem *current_clip, bool &reclip);
 	_FORCE_INLINE_ void _canvas_item_setup_shader_params(CanvasItemMaterial *material, Shader *p_shader);
 	_FORCE_INLINE_ void _canvas_item_setup_shader_uniforms(CanvasItemMaterial *material, Shader *p_shader);
+
+	void enableVertexAttribArray(int p_type);
+	void disableVertexAttribArray(int p_type);
 
 public:
 	/* TEXTURE API */

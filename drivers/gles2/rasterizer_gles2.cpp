@@ -178,7 +178,7 @@ void RasterizerGLES2::_draw_primitive(int p_points, const Vector3 *p_vertices, c
 	GLfloat tangent_array[24];
 	GLfloat uv_array[18];
 
-	glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+	enableVertexAttribArray(VS::ARRAY_VERTEX);
 	glVertexAttribPointer(VS::ARRAY_VERTEX, 3, GL_FLOAT, false, 0, vert_array);
 
 	for (int i = 0; i < p_points; i++) {
@@ -197,7 +197,7 @@ void RasterizerGLES2::_draw_primitive(int p_points, const Vector3 *p_vertices, c
 	}
 
 	if (p_normals) {
-		glEnableVertexAttribArray(VS::ARRAY_NORMAL);
+		enableVertexAttribArray(VS::ARRAY_NORMAL);
 		glVertexAttribPointer(VS::ARRAY_NORMAL, 3, GL_FLOAT, false, 0, normal_array);
 		for (int i = 0; i < p_points; i++) {
 
@@ -214,11 +214,11 @@ void RasterizerGLES2::_draw_primitive(int p_points, const Vector3 *p_vertices, c
 			}
 		}
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_NORMAL);
+		disableVertexAttribArray(VS::ARRAY_NORMAL);
 	}
 
 	if (p_colors) {
-		glEnableVertexAttribArray(VS::ARRAY_COLOR);
+		enableVertexAttribArray(VS::ARRAY_COLOR);
 		glVertexAttribPointer(VS::ARRAY_COLOR, 4, GL_FLOAT, false, 0, color_array);
 		for (int i = 0; i < p_points; i++) {
 
@@ -237,11 +237,11 @@ void RasterizerGLES2::_draw_primitive(int p_points, const Vector3 *p_vertices, c
 			}
 		}
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_COLOR);
+		disableVertexAttribArray(VS::ARRAY_COLOR);
 	}
 
 	if (p_tangents) {
-		glEnableVertexAttribArray(VS::ARRAY_TANGENT);
+		enableVertexAttribArray(VS::ARRAY_TANGENT);
 		glVertexAttribPointer(VS::ARRAY_TANGENT, 4, GL_FLOAT, false, 0, tangent_array);
 		for (int i = 0; i < p_points; i++) {
 
@@ -260,12 +260,12 @@ void RasterizerGLES2::_draw_primitive(int p_points, const Vector3 *p_vertices, c
 			}
 		}
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TANGENT);
+		disableVertexAttribArray(VS::ARRAY_TANGENT);
 	}
 
 	if (p_uvs) {
 
-		glEnableVertexAttribArray(VS::ARRAY_TEX_UV);
+		enableVertexAttribArray(VS::ARRAY_TEX_UV);
 		glVertexAttribPointer(VS::ARRAY_TEX_UV, 3, GL_FLOAT, false, 0, uv_array);
 		for (int i = 0; i < p_points; i++) {
 
@@ -283,7 +283,7 @@ void RasterizerGLES2::_draw_primitive(int p_points, const Vector3 *p_vertices, c
 		}
 
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TEX_UV);
+		disableVertexAttribArray(VS::ARRAY_TEX_UV);
 	}
 
 	/*
@@ -5573,7 +5573,7 @@ Error RasterizerGLES2::_setup_geometry(const Geometry *p_geometry, const Materia
 				//					continue;
 
 				if (ad.size == 0 || !ad.bind) {
-					glDisableVertexAttribArray(i);
+					disableVertexAttribArray(i);
 					if (i == VS::ARRAY_COLOR) {
 						_set_color_attrib(Color(1, 1, 1, 1));
 					};
@@ -5581,7 +5581,7 @@ Error RasterizerGLES2::_setup_geometry(const Geometry *p_geometry, const Materia
 					continue; // this one is disabled.
 				}
 
-				glEnableVertexAttribArray(i);
+				enableVertexAttribArray(i);
 				//				print_line("set: "+itos(i)+" - count: "+itos(ad.count)+" datatype: "+itos(ad.datatype)+" ofs: "+itos(ad.ofs)+" stride: "+itos(stride)+" total len: "+itos(surf->array_len));
 				glVertexAttribPointer(i, ad.count, ad.datatype, ad.normalize, stride, &base[ad.ofs]);
 			}
@@ -5677,7 +5677,7 @@ void RasterizerGLES2::_render(const Geometry *p_geometry, const Material *p_mate
 				float thd = 1.0 / mm->th;
 				float parm[3] = { 0.0, 01.0, (1.0f / mm->tw) };
 				glActiveTexture(GL_TEXTURE0 + max_texture_units - 2);
-				glDisableVertexAttribArray(6);
+				disableVertexAttribArray(6);
 				glBindTexture(GL_TEXTURE_2D, mm->tex_id);
 				material_shader.set_uniform(MaterialShaderGLES2::INSTANCE_MATRICES, GL_TEXTURE0 + max_texture_units - 2);
 
@@ -5781,56 +5781,56 @@ void RasterizerGLES2::_render(const Geometry *p_geometry, const Material *p_mate
 
 				if (!c.normals.empty()) {
 
-					glEnableVertexAttribArray(VS::ARRAY_NORMAL);
+					enableVertexAttribArray(VS::ARRAY_NORMAL);
 					glVertexAttribPointer(VS::ARRAY_NORMAL, 3, GL_FLOAT, false, sizeof(Vector3), c.normals.ptr());
 
 				} else {
 
-					glDisableVertexAttribArray(VS::ARRAY_NORMAL);
+					disableVertexAttribArray(VS::ARRAY_NORMAL);
 				}
 
 				if (!c.tangents.empty()) {
 
-					glEnableVertexAttribArray(VS::ARRAY_TANGENT);
+					enableVertexAttribArray(VS::ARRAY_TANGENT);
 					glVertexAttribPointer(VS::ARRAY_TANGENT, 4, GL_FLOAT, false, sizeof(Plane), c.tangents.ptr());
 
 				} else {
 
-					glDisableVertexAttribArray(VS::ARRAY_TANGENT);
+					disableVertexAttribArray(VS::ARRAY_TANGENT);
 				}
 
 				if (!c.colors.empty()) {
 
-					glEnableVertexAttribArray(VS::ARRAY_COLOR);
+					enableVertexAttribArray(VS::ARRAY_COLOR);
 					glVertexAttribPointer(VS::ARRAY_COLOR, 4, GL_FLOAT, false, sizeof(Color), c.colors.ptr());
 
 				} else {
 
-					glDisableVertexAttribArray(VS::ARRAY_COLOR);
+					disableVertexAttribArray(VS::ARRAY_COLOR);
 					_set_color_attrib(Color(1, 1, 1, 1));
 				}
 
 				if (!c.uvs.empty()) {
 
-					glEnableVertexAttribArray(VS::ARRAY_TEX_UV);
+					enableVertexAttribArray(VS::ARRAY_TEX_UV);
 					glVertexAttribPointer(VS::ARRAY_TEX_UV, 2, GL_FLOAT, false, sizeof(Vector2), c.uvs.ptr());
 
 				} else {
 
-					glDisableVertexAttribArray(VS::ARRAY_TEX_UV);
+					disableVertexAttribArray(VS::ARRAY_TEX_UV);
 				}
 
 				if (!c.uvs2.empty()) {
 
-					glEnableVertexAttribArray(VS::ARRAY_TEX_UV2);
+					enableVertexAttribArray(VS::ARRAY_TEX_UV2);
 					glVertexAttribPointer(VS::ARRAY_TEX_UV2, 2, GL_FLOAT, false, sizeof(Vector2), c.uvs2.ptr());
 
 				} else {
 
-					glDisableVertexAttribArray(VS::ARRAY_TEX_UV2);
+					disableVertexAttribArray(VS::ARRAY_TEX_UV2);
 				}
 
-				glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+				enableVertexAttribArray(VS::ARRAY_VERTEX);
 				glVertexAttribPointer(VS::ARRAY_VERTEX, 3, GL_FLOAT, false, sizeof(Vector3), c.vertices.ptr());
 				glDrawArrays(gl_primitive[c.primitive], 0, c.vertices.size());
 			}
@@ -6431,7 +6431,7 @@ void RasterizerGLES2::_copy_to_texscreen() {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	for (int i = 0; i < VS::ARRAY_MAX; i++) {
-		glDisableVertexAttribArray(i);
+		disableVertexAttribArray(i);
 	}
 
 	glActiveTexture(GL_TEXTURE0);
@@ -6914,7 +6914,7 @@ void RasterizerGLES2::end_scene() {
 	if (use_fb) {
 
 		for (int i = 0; i < VS::ARRAY_MAX; i++) {
-			glDisableVertexAttribArray(i);
+			disableVertexAttribArray(i);
 		}
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -7236,7 +7236,7 @@ void RasterizerGLES2::end_shadow_map() {
 #endif
 
 		for (int i = 0; i < VS::ARRAY_MAX; i++) {
-			glDisableVertexAttribArray(i);
+			disableVertexAttribArray(i);
 		}
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -7511,7 +7511,7 @@ void RasterizerGLES2::canvas_begin() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	for (int i = 0; i < VS::ARRAY_MAX; i++) {
-		glDisableVertexAttribArray(i);
+		disableVertexAttribArray(i);
 	}
 
 	glActiveTexture(GL_TEXTURE0);
@@ -7690,23 +7690,23 @@ void RasterizerGLES2::_draw_gui_primitive(int p_points, const Vector2 *p_vertice
 
 #ifndef GLES_NO_CLIENT_ARRAYS
 
-	glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+	enableVertexAttribArray(VS::ARRAY_VERTEX);
 	glVertexAttribPointer(VS::ARRAY_VERTEX, 2, GL_FLOAT, false, sizeof(Vector2), p_vertices);
 
 	if (p_colors) {
 
-		glEnableVertexAttribArray(VS::ARRAY_COLOR);
+		enableVertexAttribArray(VS::ARRAY_COLOR);
 		glVertexAttribPointer(VS::ARRAY_COLOR, 4, GL_FLOAT, false, sizeof(Color), p_colors);
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_COLOR);
+		disableVertexAttribArray(VS::ARRAY_COLOR);
 	}
 
 	if (p_uvs) {
 
-		glEnableVertexAttribArray(VS::ARRAY_TEX_UV);
+		enableVertexAttribArray(VS::ARRAY_TEX_UV);
 		glVertexAttribPointer(VS::ARRAY_TEX_UV, 2, GL_FLOAT, false, sizeof(Vector2), p_uvs);
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TEX_UV);
+		disableVertexAttribArray(VS::ARRAY_TEX_UV);
 	}
 
 	glDrawArrays(prim[p_points], 0, p_points);
@@ -7716,7 +7716,7 @@ void RasterizerGLES2::_draw_gui_primitive(int p_points, const Vector2 *p_vertice
 	glBindBuffer(GL_ARRAY_BUFFER, gui_quad_buffer);
 	float b[32];
 	int ofs = 0;
-	glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+	enableVertexAttribArray(VS::ARRAY_VERTEX);
 	glVertexAttribPointer(VS::ARRAY_VERTEX, 2, GL_FLOAT, false, sizeof(float) * 2, ((float *)0) + ofs);
 	for (int i = 0; i < p_points; i++) {
 		b[ofs++] = p_vertices[i].x;
@@ -7725,7 +7725,7 @@ void RasterizerGLES2::_draw_gui_primitive(int p_points, const Vector2 *p_vertice
 
 	if (p_colors) {
 
-		glEnableVertexAttribArray(VS::ARRAY_COLOR);
+		enableVertexAttribArray(VS::ARRAY_COLOR);
 		glVertexAttribPointer(VS::ARRAY_COLOR, 4, GL_FLOAT, false, sizeof(float) * 4, ((float *)0) + ofs);
 		for (int i = 0; i < p_points; i++) {
 			b[ofs++] = p_colors[i].r;
@@ -7735,12 +7735,12 @@ void RasterizerGLES2::_draw_gui_primitive(int p_points, const Vector2 *p_vertice
 		}
 
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_COLOR);
+		disableVertexAttribArray(VS::ARRAY_COLOR);
 	}
 
 	if (p_uvs) {
 
-		glEnableVertexAttribArray(VS::ARRAY_TEX_UV);
+		enableVertexAttribArray(VS::ARRAY_TEX_UV);
 		glVertexAttribPointer(VS::ARRAY_TEX_UV, 2, GL_FLOAT, false, sizeof(float) * 2, ((float *)0) + ofs);
 		for (int i = 0; i < p_points; i++) {
 			b[ofs++] = p_uvs[i].x;
@@ -7748,7 +7748,7 @@ void RasterizerGLES2::_draw_gui_primitive(int p_points, const Vector2 *p_vertice
 		}
 
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TEX_UV);
+		disableVertexAttribArray(VS::ARRAY_TEX_UV);
 	}
 
 	glBufferSubData(GL_ARRAY_BUFFER, 0, ofs * 4, &b[0]);
@@ -7763,30 +7763,30 @@ void RasterizerGLES2::_draw_gui_primitive2(int p_points, const Vector2 *p_vertic
 
 	static const GLenum prim[5] = { GL_POINTS, GL_POINTS, GL_LINES, GL_TRIANGLES, GL_TRIANGLE_FAN };
 
-	glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+	enableVertexAttribArray(VS::ARRAY_VERTEX);
 	glVertexAttribPointer(VS::ARRAY_VERTEX, 2, GL_FLOAT, false, sizeof(Vector2), p_vertices);
 	if (p_colors) {
 
-		glEnableVertexAttribArray(VS::ARRAY_COLOR);
+		enableVertexAttribArray(VS::ARRAY_COLOR);
 		glVertexAttribPointer(VS::ARRAY_COLOR, 4, GL_FLOAT, false, sizeof(Color), p_colors);
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_COLOR);
+		disableVertexAttribArray(VS::ARRAY_COLOR);
 	}
 
 	if (p_uvs) {
 
-		glEnableVertexAttribArray(VS::ARRAY_TEX_UV);
+		enableVertexAttribArray(VS::ARRAY_TEX_UV);
 		glVertexAttribPointer(VS::ARRAY_TEX_UV, 2, GL_FLOAT, false, sizeof(Vector2), p_uvs);
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TEX_UV);
+		disableVertexAttribArray(VS::ARRAY_TEX_UV);
 	}
 
 	if (p_uvs2) {
 
-		glEnableVertexAttribArray(VS::ARRAY_TEX_UV2);
+		enableVertexAttribArray(VS::ARRAY_TEX_UV2);
 		glVertexAttribPointer(VS::ARRAY_TEX_UV2, 2, GL_FLOAT, false, sizeof(Vector2), p_uvs2);
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TEX_UV2);
+		disableVertexAttribArray(VS::ARRAY_TEX_UV2);
 	}
 
 	glDrawArrays(prim[p_points], 0, p_points);
@@ -7984,22 +7984,22 @@ void RasterizerGLES2::canvas_draw_polygon(int p_vertex_count, const int *p_indic
 	Texture *texture = _bind_canvas_texture(p_texture);
 
 #ifndef GLES_NO_CLIENT_ARRAYS
-	glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+	enableVertexAttribArray(VS::ARRAY_VERTEX);
 	glVertexAttribPointer(VS::ARRAY_VERTEX, 2, GL_FLOAT, false, sizeof(Vector2), p_vertices);
 	if (do_colors) {
 
-		glEnableVertexAttribArray(VS::ARRAY_COLOR);
+		enableVertexAttribArray(VS::ARRAY_COLOR);
 		glVertexAttribPointer(VS::ARRAY_COLOR, 4, GL_FLOAT, false, sizeof(Color), p_colors);
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_COLOR);
+		disableVertexAttribArray(VS::ARRAY_COLOR);
 	}
 
 	if (texture && p_uvs) {
 
-		glEnableVertexAttribArray(VS::ARRAY_TEX_UV);
+		enableVertexAttribArray(VS::ARRAY_TEX_UV);
 		glVertexAttribPointer(VS::ARRAY_TEX_UV, 2, GL_FLOAT, false, sizeof(Vector2), p_uvs);
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TEX_UV);
+		disableVertexAttribArray(VS::ARRAY_TEX_UV);
 	}
 
 	if (p_indices) {
@@ -8026,7 +8026,7 @@ void RasterizerGLES2::canvas_draw_polygon(int p_vertex_count, const int *p_indic
 		print_line("Too many vertices to render");
 		return;
 	}
-	glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+	enableVertexAttribArray(VS::ARRAY_VERTEX);
 	glVertexAttribPointer(VS::ARRAY_VERTEX, 2, GL_FLOAT, false, sizeof(float) * 2, ((float *)0) + ofs);
 	for (int i = 0; i < p_vertex_count; i++) {
 		b[ofs++] = p_vertices[i].x;
@@ -8035,7 +8035,7 @@ void RasterizerGLES2::canvas_draw_polygon(int p_vertex_count, const int *p_indic
 
 	if (p_colors && do_colors) {
 
-		glEnableVertexAttribArray(VS::ARRAY_COLOR);
+		enableVertexAttribArray(VS::ARRAY_COLOR);
 		glVertexAttribPointer(VS::ARRAY_COLOR, 4, GL_FLOAT, false, sizeof(float) * 4, ((float *)0) + ofs);
 		for (int i = 0; i < p_vertex_count; i++) {
 			b[ofs++] = p_colors[i].r;
@@ -8045,12 +8045,12 @@ void RasterizerGLES2::canvas_draw_polygon(int p_vertex_count, const int *p_indic
 		}
 
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_COLOR);
+		disableVertexAttribArray(VS::ARRAY_COLOR);
 	}
 
 	if (p_uvs) {
 
-		glEnableVertexAttribArray(VS::ARRAY_TEX_UV);
+		enableVertexAttribArray(VS::ARRAY_TEX_UV);
 		glVertexAttribPointer(VS::ARRAY_TEX_UV, 2, GL_FLOAT, false, sizeof(float) * 2, ((float *)0) + ofs);
 		for (int i = 0; i < p_vertex_count; i++) {
 			b[ofs++] = p_uvs[i].x;
@@ -8058,7 +8058,7 @@ void RasterizerGLES2::canvas_draw_polygon(int p_vertex_count, const int *p_indic
 		}
 
 	} else {
-		glDisableVertexAttribArray(VS::ARRAY_TEX_UV);
+		disableVertexAttribArray(VS::ARRAY_TEX_UV);
 	}
 
 	glBufferSubData(GL_ARRAY_BUFFER, 0, ofs * 4, &b[0]);
@@ -8301,7 +8301,7 @@ void RasterizerGLES2::canvas_light_shadow_buffer_update(RID p_buffer, const Matr
 	if (!use_rgba_shadowmaps)
 		glColorMask(0, 0, 0, 0);
 
-	glEnableVertexAttribArray(VS::ARRAY_VERTEX);
+	enableVertexAttribArray(VS::ARRAY_VERTEX);
 	canvas_shadow_shader.bind();
 
 	glViewport(0, 0, cls->size, cls->height);
@@ -8408,7 +8408,7 @@ void RasterizerGLES2::canvas_light_shadow_buffer_update(RID p_buffer, const Matr
 		}
 	}
 
-	glDisableVertexAttribArray(VS::ARRAY_VERTEX);
+	disableVertexAttribArray(VS::ARRAY_VERTEX);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
@@ -10118,6 +10118,24 @@ bool RasterizerGLES2::_test_depth_shadow_buffer() {
 	return status == GL_FRAMEBUFFER_COMPLETE;
 }
 
+void RasterizerGLES2::enableVertexAttribArray(int p_type) {
+
+	const int bit = 1 << p_type;
+	if (!(enabled_vertex_arrays & bit)) {
+		glEnableVertexAttribArray(p_type);
+		enabled_vertex_arrays |= bit;
+	}
+}
+
+void RasterizerGLES2::disableVertexAttribArray(int p_type) {
+
+	const int bit = 1 << p_type;
+	if ((enabled_vertex_arrays & bit)) {
+		glDisableVertexAttribArray(p_type);
+		enabled_vertex_arrays &= ~bit;
+	}
+}
+
 void RasterizerGLES2::init() {
 
 	if (OS::get_singleton()->is_stdout_verbose()) {
@@ -10414,6 +10432,8 @@ void RasterizerGLES2::init() {
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 16 * 1024, NULL, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // unbind
 #endif
+
+	enabled_vertex_arrays = 0;
 
 	shader_time_rollback = GLOBAL_DEF("rasterizer/shader_time_rollback", 300);
 	time_scale = 1.0f;
