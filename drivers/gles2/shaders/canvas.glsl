@@ -121,6 +121,7 @@ varying vec4 color_interp;
 #if defined(ENABLE_SCREEN_UV)
 
 uniform vec2 screen_uv_mult;
+uniform vec2 screen_uv_offs;
 
 #endif
 
@@ -210,7 +211,7 @@ void main() {
 
 
 #if defined(ENABLE_SCREEN_UV)
-	vec2 screen_uv = gl_FragCoord.xy*screen_uv_mult;
+	vec2 screen_uv = (gl_FragCoord.xy + screen_uv_offs)*screen_uv_mult;
 #endif
 
 

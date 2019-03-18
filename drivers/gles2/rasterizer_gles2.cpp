@@ -8743,6 +8743,7 @@ void RasterizerGLES2::_canvas_item_setup_shader_params(CanvasItemMaterial *mater
 
 	if (shader->has_screen_uv) {
 		canvas_shader.set_uniform(CanvasShaderGLES2::SCREEN_UV_MULT, Vector2(1.0 / viewport.width, 1.0 / viewport.height));
+		canvas_shader.set_uniform(CanvasShaderGLES2::SCREEN_UV_OFFS, Vector2(-viewport.x, -viewport.y));
 	}
 
 	uses_texpixel_size = shader->uses_texpixel_size;
