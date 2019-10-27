@@ -30,6 +30,7 @@
 
 #include "dir_access.h"
 
+#include "core/os/dir_access_combined.h"
 #include "core/os/file_access.h"
 #include "core/os/memory.h"
 #include "core/os/os.h"
@@ -231,7 +232,7 @@ String DirAccess::fix_path(String p_path) const {
 	return p_path;
 }
 
-DirAccess::CreateFunc DirAccess::create_func[ACCESS_MAX] = { 0, 0, 0 };
+Vector<DirAccess::CreateFunc> DirAccess::create_funcs[DirAccess::ACCESS_MAX];
 
 DirAccess *DirAccess::create_for_path(const String &p_path) {
 
@@ -268,13 +269,25 @@ DirAccess *DirAccess::open(const String &p_path, Error *r_error) {
 
 DirAccess *DirAccess::create(AccessType p_access) {
 
-	DirAccess *da = create_func[p_access] ? create_func[p_access]() : NULL;
-	if (da) {
-		da->_access_type = p_access;
-	}
+	const Vector<CreateFunc> &funcs_for_type = create_funcs[p_access];
+	if (funcs_for_type.size() == 0) {
+		return NULL;
+	} else if (funcs_for_type.size() == 1) {
+		return funcs_for_type[0](p_access);
+	} else {
+		Vector<DirAccess *> dirs;
+		for (int i = 0; i < funcs_for_type.size(); i++) {
+			DirAccess *da = funcs_for_type[i](p_access);
+			dirs.push_back(da);
+		}
 
-	return da;
-};
+		DirAccessCombined *combined = memnew(DirAccessCombined);
+		combined->_access_type = p_access;
+		combined->configure(dirs);
+
+		return combined;
+	}
+}
 
 String DirAccess::get_full_path(const String &p_path, AccessType p_access) {
 

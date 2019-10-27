@@ -44,11 +44,11 @@ public:
 		ACCESS_MAX
 	};
 
-	typedef DirAccess *(*CreateFunc)();
+	typedef DirAccess *(*CreateFunc)(AccessType type);
 
 private:
 	AccessType _access_type;
-	static CreateFunc create_func[ACCESS_MAX]; ///< set this to instance a filesystem object
+	static Vector<CreateFunc> create_funcs[ACCESS_MAX]; ///< set this to instance a filesystem object
 
 	Error _copy_dir(DirAccess *p_target_da, String p_to, int p_chmod_flags);
 
@@ -60,9 +60,12 @@ protected:
 	bool next_is_dir;
 
 	template <class T>
-	static DirAccess *_create_builtin() {
+	static DirAccess *_create_builtin(AccessType p_access) {
 
-		return memnew(T);
+		DirAccess *dir_access = memnew(T);
+
+		dir_access->_access_type = p_access;
+		return dir_access;
 	}
 
 public:
@@ -125,8 +128,14 @@ public:
 
 	template <class T>
 	static void make_default(AccessType p_access) {
+		Vector<CreateFunc> funcs;
+		funcs.push_back(_create_builtin<T>);
+		create_funcs[p_access] = funcs;
+	}
 
-		create_func[p_access] = _create_builtin<T>;
+	template <class T>
+	static void add_override(AccessType p_access) {
+		create_funcs[p_access].insert(0, _create_builtin<T>);
 	}
 
 	static DirAccess *open(const String &p_path, Error *r_error = NULL);

@@ -278,11 +278,29 @@ bool ProjectSettings::_load_resource_pack(const String &p_pack, bool p_replace_f
 	if (!ok)
 		return false;
 
-	//if data.pck is found, all directory access will be from here
-	DirAccess::make_default<DirAccessPack>(DirAccess::ACCESS_RESOURCES);
+	if (!using_datapack) {
+		if (p_is_main_pack) {
+			// if the first pck/zip is the main pack, all res:// directory access will be read from pck/zip files
+			DirAccess::make_default<DirAccessPack>(DirAccess::ACCESS_RESOURCES);
+		} else {
+			// if the first pck/zip is NOT the main pack then augment directory access to read from packs
+			// for res:// but also allow reading from the file system, where the main game code was loaded from
+			DirAccess::add_override<DirAccessPack>(DirAccess::ACCESS_RESOURCES);
+		}
+	}
 	using_datapack = true;
 
 	return true;
+}
+
+bool ProjectSettings::_load_main_pack(const String &p_pack) {
+
+	return _load_pack(p_pack, true);
+}
+
+bool ProjectSettings::_load_resource_pack(const String &p_pack) {
+
+	return _load_pack(p_pack, false);
 }
 
 void ProjectSettings::_convert_to_last_version(int p_from_version) {
