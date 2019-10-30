@@ -96,15 +96,15 @@ Error DirAccessCombined::list_dir_begin() {
 String DirAccessCombined::get_next() {
 
 	String result;
-	while (result == "" && active_dir_index != npos) {
+	while (active_dir_index != npos && result.empty()) {
 		result = enabled_dirs[active_dir_index]->get_next();
-		if (result != "") {
+		if (!result.empty()) {
 			// On finding a duplicate, skip this entry.
 			//
 			// This only checks for duplicates after the first dir as an optimization since a single
 			// file system will never have duplicate entries.
 			if (active_dir_index > 0 && directory_items.has(result)) {
-				result = "";
+				result.clear();
 			} else {
 				directory_items.insert(result);
 			}
@@ -153,14 +153,14 @@ String DirAccessCombined::get_current_dir() {
 	if (enabled_dirs.size() > 0) {
 		return enabled_dirs[0]->get_current_dir();
 	}
-	return "";
+	return String();
 }
 
 bool DirAccessCombined::file_exists(String p_file) {
 
 	const Vector<DirAccess *> &dirs_to_check = p_file.is_rel_path() ? enabled_dirs : all_dirs;
 
-	for (int i = 0; i < dirs_to_check.size(); i++) {
+	for (int i = 0, count = dirs_to_check.size(); i < count; i++) {
 		if (dirs_to_check[i]->file_exists(p_file)) {
 			return true;
 		}
@@ -172,7 +172,7 @@ bool DirAccessCombined::dir_exists(String p_dir) {
 
 	const Vector<DirAccess *> &dirs_to_check = p_dir.is_rel_path() ? enabled_dirs : all_dirs;
 
-	for (int i = 0; i < dirs_to_check.size(); i++) {
+	for (int i = 0, count = dirs_to_check.size(); i < count; i++) {
 		if (dirs_to_check[i]->dir_exists(p_dir)) {
 			return true;
 		}
@@ -215,5 +215,5 @@ int DirAccessCombined::get_drive_count() {
 
 String DirAccessCombined::get_drive(int p_drive) {
 
-	return "";
+	return String();
 }

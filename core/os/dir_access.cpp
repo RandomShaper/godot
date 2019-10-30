@@ -270,13 +270,14 @@ DirAccess *DirAccess::open(const String &p_path, Error *r_error) {
 DirAccess *DirAccess::create(AccessType p_access) {
 
 	const Vector<CreateFunc> &funcs_for_type = create_funcs[p_access];
-	if (funcs_for_type.size() == 0) {
+	const int funcs_count = funcs_for_type.size();
+	if (funcs_count == 0) {
 		return NULL;
-	} else if (funcs_for_type.size() == 1) {
+	} else if (funcs_count == 1) {
 		return funcs_for_type[0](p_access);
 	} else {
 		Vector<DirAccess *> dirs;
-		for (int i = 0; i < funcs_for_type.size(); i++) {
+		for (int i = 0; i < funcs_count; i++) {
 			DirAccess *da = funcs_for_type[i](p_access);
 			dirs.push_back(da);
 		}
