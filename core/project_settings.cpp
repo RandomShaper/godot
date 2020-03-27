@@ -303,6 +303,14 @@ bool ProjectSettings::_load_resource_pack(const String &p_pack) {
 	return _load_pack(p_pack, false);
 }
 
+bool ProjectSettings::_unload_pack(const String &p_pack) {
+
+	if (PackedData::get_singleton()->is_disabled())
+		return false;
+
+	return PackedData::get_singleton()->remove_pack(p_pack) == OK;
+}
+
 void ProjectSettings::_convert_to_last_version(int p_from_version) {
 
 	if (p_from_version <= 3) {
@@ -1026,6 +1034,7 @@ void ProjectSettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("globalize_path", "path"), &ProjectSettings::globalize_path);
 	ClassDB::bind_method(D_METHOD("save"), &ProjectSettings::save);
 	ClassDB::bind_method(D_METHOD("load_resource_pack", "pack", "replace_files", "offset"), &ProjectSettings::_load_resource_pack, DEFVAL(true), DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("unload_resource_pack", "pack"), &ProjectSettings::_unload_pack);
 	ClassDB::bind_method(D_METHOD("property_can_revert", "name"), &ProjectSettings::property_can_revert);
 	ClassDB::bind_method(D_METHOD("property_get_revert", "name"), &ProjectSettings::property_get_revert);
 
