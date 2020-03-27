@@ -494,8 +494,13 @@ void FileAccess::store_double(double p_dest) {
 
 uint64_t FileAccess::get_modified_time(const String &p_file) {
 
+#if !defined(TOOLS_ENABLED)
 	if (PackedData::get_singleton() && !PackedData::get_singleton()->is_disabled() && (PackedData::get_singleton()->has_path(p_file) || PackedData::get_singleton()->has_directory(p_file)))
 		return 0;
+#else
+	if (PackedData::get_singleton() && !PackedData::get_singleton()->is_disabled() && PackedData::get_singleton()->owns_path(p_file))
+		return PackedData::get_singleton()->get_global_modified_time();
+#endif
 
 	FileAccess *fa = create_for_path(p_file);
 	ERR_FAIL_COND_V_MSG(!fa, 0, "Cannot create FileAccess for path '" + p_file + "'.");
@@ -507,8 +512,13 @@ uint64_t FileAccess::get_modified_time(const String &p_file) {
 
 uint32_t FileAccess::get_unix_permissions(const String &p_file) {
 
+#if !defined(TOOLS_ENABLED)
 	if (PackedData::get_singleton() && !PackedData::get_singleton()->is_disabled() && (PackedData::get_singleton()->has_path(p_file) || PackedData::get_singleton()->has_directory(p_file)))
 		return 0;
+#else
+	if (PackedData::get_singleton() && !PackedData::get_singleton()->is_disabled() && PackedData::get_singleton()->owns_path(p_file))
+		return 0;
+#endif
 
 	FileAccess *fa = create_for_path(p_file);
 	ERR_FAIL_COND_V_MSG(!fa, 0, "Cannot create FileAccess for path '" + p_file + "'.");
@@ -520,8 +530,13 @@ uint32_t FileAccess::get_unix_permissions(const String &p_file) {
 
 Error FileAccess::set_unix_permissions(const String &p_file, uint32_t p_permissions) {
 
+#if !defined(TOOLS_ENABLED)
 	if (PackedData::get_singleton() && !PackedData::get_singleton()->is_disabled() && (PackedData::get_singleton()->has_path(p_file) || PackedData::get_singleton()->has_directory(p_file)))
 		return ERR_UNAVAILABLE;
+#else
+	if (PackedData::get_singleton() && !PackedData::get_singleton()->is_disabled() && PackedData::get_singleton()->owns_path(p_file))
+		return ERR_UNAVAILABLE;
+#endif
 
 	FileAccess *fa = create_for_path(p_file);
 	ERR_FAIL_COND_V_MSG(!fa, ERR_CANT_CREATE, "Cannot create FileAccess for path '" + p_file + "'.");

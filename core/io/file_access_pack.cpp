@@ -34,11 +34,21 @@
 
 #include <stdio.h>
 
+#ifdef TOOLS_ENABLED
+#include "core/project_settings.h"
+#endif
+
+#define PACK_VERSION 1
+
 Error PackedData::add_pack(const String &p_path, bool p_replace_files, size_t p_offset) {
 
 	for (int i = 0; i < sources.size(); i++) {
 
 		if (sources[i]->try_open_pack(p_path, p_replace_files, p_offset)) {
+
+#ifdef TOOLS_ENABLED
+			global_modified_time = MAX(global_modified_time, FileAccess::get_modified_time(p_path));
+#endif
 
 			return OK;
 		};
@@ -103,6 +113,56 @@ void PackedData::add_pack_source(PackSource *p_source) {
 	}
 };
 
+#ifdef TOOLS_ENABLED
+/*
+	The condition for packed ownership of a directory is: if the target directory or any of its ancestors is
+	provided by a pack file and either contains files or is not present in the true file system.
+	For a file it is that its parent directory is owned.
+	In other words, the intended usage rule for the in-editor pack mount feature is that the true
+	file system and the packed one are "disjoint."
+*/
+bool PackedData::owns_path(const String &p_path) {
+
+	if (!p_path.begins_with("res://")) {
+		return false;
+	}
+
+	DirAccess *da_fs = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+
+	bool owned = false;
+
+	Vector<String> parts = p_path.trim_prefix("res://").split("/");
+	PackedDir *pd = root;
+	String partial_path = "res://";
+	for (int i = 0; i < parts.size(); ++i) {
+
+		bool subdir_found = false;
+		for (int j = 0; j < pd->subdirs.size(); ++j) {
+			if (pd->subdirs.has(parts[i])) {
+				pd = pd->subdirs[parts[i]];
+				subdir_found = true;
+				break;
+			}
+		}
+		if (!subdir_found) {
+			break;
+		}
+
+		partial_path = partial_path.plus_file(parts[i]);
+		String global_partial_path = ProjectSettings::get_singleton()->globalize_path(partial_path);
+		if (pd->files.size() || !da_fs->dir_exists(global_partial_path)) {
+			// Directory in PCK and contains files
+			owned = true;
+			break;
+		}
+	}
+
+	memdelete(da_fs);
+
+	return owned;
+}
+#endif
+
 PackedData *PackedData::singleton = NULL;
 
 PackedData::PackedData() {
@@ -111,6 +171,9 @@ PackedData::PackedData() {
 	root = memnew(PackedDir);
 	root->parent = NULL;
 	disabled = false;
+#ifdef TOOLS_ENABLED
+	global_modified_time = 0;
+#endif
 
 	add_pack_source(memnew(PackedSourcePCK));
 }

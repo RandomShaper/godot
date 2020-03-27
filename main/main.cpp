@@ -1220,6 +1220,31 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	message_queue = memnew(MessageQueue);
 
+#ifdef TOOLS_ENABLED
+	if (!project_manager) {
+		String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
+		DirAccess *da = DirAccess::open(exec_dir);
+		if (da) {
+			da->list_dir_begin();
+			for (;;) {
+				String f = da->get_next();
+				if (f == "") {
+					break;
+				}
+				String extension = f.get_extension().to_lower();
+				if (!da->current_is_dir() && (extension == "pck" || extension == "zip")) {
+					PackedData::get_singleton()->set_disabled(false);
+					print_line("Mounting " + f);
+					ProjectSettings::get_singleton()->load_pack(exec_dir.plus_file(f));
+				}
+			}
+			memdelete(da);
+		} else {
+			ERR_PRINT("Cannot list files in executable path");
+		}
+	}
+#endif
+
 	if (p_second_phase)
 		return setup2();
 

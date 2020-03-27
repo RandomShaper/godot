@@ -30,9 +30,11 @@
 
 #include "editor_file_system.h"
 
+#include "core/io/file_access_pack.h"
 #include "core/io/resource_importer.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
+#include "core/os/dir_access.h"
 #include "core/os/file_access.h"
 #include "core/os/os.h"
 #include "core/project_settings.h"
@@ -1804,7 +1806,16 @@ void EditorFileSystem::_reimport_file(const String &p_file) {
 
 	//as import is complete, save the .import file
 
-	FileAccess *f = FileAccess::open(p_file + ".import", FileAccess::WRITE);
+	String tmp_packed_import_path = EditorSettings::get_singleton()->get_cache_dir().plus_file("file_in_pack.tmp.import");
+
+	bool is_packed = PackedData::get_singleton()->has_path(p_file);
+
+	FileAccess *f;
+	if (!is_packed) {
+		f = FileAccess::open(p_file + ".import", FileAccess::WRITE);
+	} else {
+		f = FileAccess::open(tmp_packed_import_path, FileAccess::WRITE);
+	}
 	ERR_FAIL_COND_MSG(!f, "Cannot open file from path '" + p_file + ".import'.");
 
 	//write manually, as order matters ([remap] has to go first for performance).
@@ -1898,6 +1909,37 @@ void EditorFileSystem::_reimport_file(const String &p_file) {
 	}
 	md5s->close();
 	memdelete(md5s);
+
+	if (is_packed) {
+		FileAccess *fa = FileAccess::open(tmp_packed_import_path, FileAccess::READ);
+		if (!fa) {
+			ERR_PRINTS("Cannot read the expectation .import temp file for " + p_file + ".");
+			return;
+		}
+		String expected = fa->get_as_utf8_string();
+		memdelete(fa);
+
+		fa = PackedData::get_singleton()->try_open_path(p_file + ".import");
+		if (!fa) {
+			ERR_PRINTS("Cannot read " + p_file + ".import from pack. Was the resource imported in its original project?");
+			return;
+		}
+		String stored = fa->get_as_utf8_string();
+		memdelete(fa);
+
+		if (expected != stored) {
+			ERR_PRINTS(p_file + ".import's contents in a pack file don't match the expected ones. Please re-export ensuring the import settings are up-to-date and match the target project.");
+		}
+
+		// Remove temp files
+		DirAccess *dir = DirAccess::open(EditorSettings::get_singleton()->get_cache_dir());
+		if (!dir || dir->remove(tmp_packed_import_path) != OK) {
+			WARN_PRINT("Cannot remove temp import files from a packed resource.")
+		}
+		if (dir) {
+			memdelete(dir);
+		}
+	}
 
 	//update modified times, to avoid reimport
 	fs->files[cpos]->modified_time = FileAccess::get_modified_time(p_file);

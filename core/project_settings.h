@@ -158,6 +158,8 @@ public:
 
 	bool has_custom_feature(const String &p_feature) const;
 
+	bool load_pack(const String &p_pack);
+
 	ProjectSettings();
 	~ProjectSettings();
 };

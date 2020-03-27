@@ -104,6 +104,12 @@ private:
 	bool disabled;
 
 	void _free_packed_dirs(PackedDir *p_dir);
+#ifdef TOOLS_ENABLED
+	uint64_t global_modified_time;
+#endif
+
+	void _free_packed_dirs(PackedDir *p_dir);
+	void _free_empty_packed_dirs_up(PackedDir *p_dir);
 
 public:
 	void add_pack_source(PackSource *p_source);
@@ -120,6 +126,12 @@ public:
 
 	_FORCE_INLINE_ DirAccess *try_open_directory(const String &p_path);
 	_FORCE_INLINE_ bool has_directory(const String &p_path);
+
+#ifdef TOOLS_ENABLED
+	bool owns_path(const String &p_path);
+
+	uint64_t get_global_modified_time() { return global_modified_time; }
+#endif
 
 	PackedData();
 	~PackedData();

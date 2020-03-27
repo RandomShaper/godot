@@ -43,28 +43,41 @@
  * - When enumerating items in a dir, a given name is returned at most once.
  * - If there is a conflict (same path exists to file vs. folder or multiple files), it is loaded from the first file system that has that item.
  * - When checking if an item exists, relative paths only check the file systems that have the current directory.  Absolute paths check all file systems.
- * - This is a simplified read-only file system that doesn't support drive letters or write/change operations.
+ * - This is a simplified read-only file system intended for ACCESS_RESOURCES, so it doesn't support drive letters.
+ * - Regarding write/change operations, those are only supported in tools-enabled builds, where they will be routed to the real file system implementation
+ *   found among the provided ones.
+ *   In addition, such operations will be rejected if they are found to be targeting a branch of the file system tree "owned" by the packed file system.
+ *   However, at runtime everything is simply read-only.
  */
 class DirAccessCombined : public DirAccess {
-	enum {
-		npos = -1,
-	};
+	// dirs contains all dirs to combine into a virtual directory heirarchy
+	Vector<DirAccess *> dirs;
+#ifdef TOOLS_ENABLED
+	// the real file system implementation
+	DirAccess *non_packed_da;
+#endif
 
-	// all_dirs contains all dirs to combine into a virtual directory heirarchy
-	Vector<DirAccess *> all_dirs;
+	// the virtual notion of current directory, regardless which implementations could switch to it (as long as any did)
+	String current_dir;
 
-	// enabled_dirs is the subset of all_dirs that include the current directory.
-	// These directories and are used for enumeration within the current directory.
-	Vector<DirAccess *> enabled_dirs;
+	struct {
+		// dirs is the subset of dirs that include the current directory.
+		// These directories and are used for enumeration within the current directory.
+		Vector<DirAccess *> dirs;
 
-	// active_dir_index is the active dir index for enumeration.  This indexes into enabled_dirs.
-	// active_dir_index is npos when there is no active dir index (not enumerating or enumeration complete)
-	int active_dir_index;
+		// dir_index is the active dir index for listing.  This indexes into dirs.
+		// dir_index is -1 when there is no active dir index (not enumerating or enumeration complete)
+		int dir_index;
 
-	// directory_items is the set of items already enumerated to avoid returning the same name more than once
-	Set<String> directory_items;
+		// items is the set of items already enumerated to avoid returning the same name more than once
+		Set<String> items;
+	} listing;
 
 	void _reset_enumeration();
+
+#ifdef TOOLS_ENABLED
+	bool _path_parent_is_owned_by_pck(const String &p_path);
+#endif
 
 public:
 	virtual Error list_dir_begin();
@@ -85,7 +98,7 @@ public:
 	virtual Error make_dir(String p_dir);
 
 	virtual Error rename(String p_from, String p_to);
-	virtual Error remove(String p_name);
+	virtual Error remove(String p_path);
 
 	size_t get_space_left();
 
