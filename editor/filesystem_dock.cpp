@@ -1556,6 +1556,9 @@ void FileSystemDock::_tree_rmb_option(int p_option) {
 				}
 			}
 		} break;
+		case FOLDER_PACK: {
+			emit_signal("pack_folder", selected_strings[0].trim_suffix("/"));
+		} break;
 		default: {
 			_file_option(p_option, selected_strings);
 		} break;
@@ -2268,6 +2271,10 @@ void FileSystemDock::_file_and_folders_fill_popup(PopupMenu *p_popup, Vector<Str
 	} else if (all_folders && foldernames.size() > 0) {
 		p_popup->add_icon_item(get_icon("Load", "EditorIcons"), TTR("Open"), FILE_OPEN);
 		p_popup->add_separator();
+		if (p_paths.size() == 1) {
+			p_popup->add_item(TTR("Pack to .pck/.zip..."), FOLDER_PACK);
+		}
+		p_popup->add_separator();
 	}
 
 	if (p_paths.size() == 1) {
@@ -2569,6 +2576,7 @@ void FileSystemDock::_bind_methods() {
 
 	ADD_SIGNAL(MethodInfo("inherit", PropertyInfo(Variant::STRING, "file")));
 	ADD_SIGNAL(MethodInfo("instance", PropertyInfo(Variant::POOL_STRING_ARRAY, "files")));
+	ADD_SIGNAL(MethodInfo("pack_folder", PropertyInfo(Variant::STRING, "folder")));
 
 	ADD_SIGNAL(MethodInfo("file_removed", PropertyInfo(Variant::STRING, "file")));
 	ADD_SIGNAL(MethodInfo("folder_removed", PropertyInfo(Variant::STRING, "folder")));

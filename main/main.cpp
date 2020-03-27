@@ -302,6 +302,7 @@ void Main::print_help(const char *p_binary) {
 	OS::get_singleton()->print("  --export-debug <preset> <path>   Same as --export, but using the debug template.\n");
 	OS::get_singleton()->print("  --export-pack <preset> <path>    Same as --export, but only export the game pack for the given preset. The <path> extension determines whether it will be in PCK or ZIP format.\n");
 	OS::get_singleton()->print("  --doctool <path>                 Dump the engine API reference to the given <path> in XML format, merging if existing files are found.\n");
+	OS::get_singleton()->print("  --pack-folder <path>             Pack a specific folder of the project as a PCK or ZIP file.\n");
 	OS::get_singleton()->print("  --no-docbase                     Disallow dumping the base types (used with --doctool).\n");
 	OS::get_singleton()->print("  --build-solutions                Build the scripting solutions (e.g. for C# projects). Implies --editor and requires a valid project to edit.\n");
 #ifdef DEBUG_METHODS_ENABLED
@@ -1486,6 +1487,7 @@ bool Main::start() {
 #ifdef TOOLS_ENABLED
 	bool doc_base = true;
 	String _export_preset;
+	String _pack_folder;
 	bool export_debug = false;
 	bool export_pack_only = false;
 #endif
@@ -1541,10 +1543,14 @@ bool Main::start() {
 				editor = true; //needs editor
 				_export_preset = args[i + 1];
 				export_debug = true;
-			} else if (args[i] == "--export-pack") {
-				editor = true;
-				_export_preset = args[i + 1];
-				export_pack_only = true;
+			} else if (args[i] == "--pack-folder") {
+				editor = true; //needs editor
+				if (i + 1 < args.size()) {
+					_pack_folder = args[i + 1];
+				} else {
+					ERR_PRINT("Folder not specified");
+					return false;
+				}
 #endif
 			} else {
 				// The parameter does not match anything known, don't skip the next argument
@@ -1620,8 +1626,38 @@ bool Main::start() {
 
 #endif
 
-	if (script == "" && game_path == "" && String(GLOBAL_DEF("application/run/main_scene", "")) != "") {
-		game_path = GLOBAL_DEF("application/run/main_scene", "");
+	if (_export_preset != "") {
+		if (game_path == "") {
+			String err = "Command line param ";
+			err += export_debug ? "--export-debug" : "--export";
+			err += " passed but no destination path given.\n";
+			err += "Please specify the binary's file path to export to. Aborting export.";
+			ERR_PRINT(err.utf8().get_data());
+			return false;
+		}
+		operation_path = game_path;
+		game_path = "";
+	}
+
+	if (_pack_folder != "") {
+		if (game_path == "") {
+			String err = "Command line param ";
+			err += "--pack-folder";
+			err += " passed but no destination path given.\n";
+			err += "Please specify the .pck or .zip file path to export to. Aborting export.";
+			ERR_PRINT(err.utf8().get_data());
+			return false;
+		}
+		operation_path = game_path;
+		game_path = "";
+	}
+
+	if (operation_path != "") {
+		Engine::get_singleton()->set_editor_hint(true);
+	} else {
+		if (script == "" && game_path == "" && String(GLOBAL_DEF("application/run/main_scene", "")) != "") {
+			game_path = GLOBAL_DEF("application/run/main_scene", "");
+		}
 	}
 
 	MainLoop *main_loop = NULL;
@@ -1804,6 +1840,11 @@ bool Main::start() {
 			if (_export_preset != "") {
 				editor_node->export_preset(_export_preset, positional_arg, export_debug, export_pack_only);
 				game_path = ""; // Do not load anything.
+			}
+
+			if (_pack_folder != "") {
+
+				editor_node->pack_folder(_pack_folder, operation_path);
 			}
 		}
 #endif

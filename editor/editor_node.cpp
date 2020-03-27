@@ -758,6 +758,19 @@ void EditorNode::_fs_changed() {
 		}
 		_exit_editor();
 	}
+
+	if (export_defer.folder != "" && !EditorFileSystem::get_singleton()->is_scanning()) {
+
+		Error err = OK;
+		err = do_folder_pack(export_defer.folder, export_defer.path);
+
+		if (err != OK) {
+			ERR_PRINTS(vformat(TTR("Folder pack failed with error code %d."), (int)err));
+		}
+
+		export_defer.folder = "";
+		_exit_editor();
+	}
 }
 
 void EditorNode::_resources_reimported(const Vector<String> &p_resources) {
@@ -3713,6 +3726,21 @@ void EditorNode::_instance_request(const Vector<String> &p_files) {
 	request_instance_scenes(p_files);
 }
 
+void EditorNode::_pack_folder_request(const String &p_folder) {
+
+	file_pack_folder->set_meta("folder", p_folder);
+	file_pack_folder->popup_centered_ratio();
+}
+
+void EditorNode::_pack_folder_confirmed(String p_file) {
+
+	Error err = do_folder_pack(file_pack_folder->get_meta("folder"), p_file);
+
+	if (err != OK) {
+		ERR_PRINTS(vformat(TTR("Plugin export failed with error code %d."), (int)err));
+	}
+}
+
 void EditorNode::_close_messages() {
 
 	old_split_ofs = center_split->get_split_offset();
@@ -4168,6 +4196,36 @@ Error EditorNode::export_preset(const String &p_preset, const String &p_path, bo
 	export_defer.pack_only = p_pack_only;
 	cmdline_export_mode = true;
 	return OK;
+}
+
+Error EditorNode::pack_folder(const String &p_folder, const String &p_output_file) {
+
+	export_defer.preset = "";
+	export_defer.path = p_output_file;
+	export_defer.folder = p_folder;
+	disable_progress_dialog = true;
+	return OK;
+}
+
+Error EditorNode::do_folder_pack(const String &p_folder, const String &p_output_file) {
+
+	Ref<EditorExportPlatformPC> platform;
+
+	platform.instance();
+	Ref<EditorExportPreset> preset = platform->create_preset();
+	EditorExport::get_singleton()->set_block_save_enabled(true);
+	preset->set_export_filter(EditorExportPreset::ExportFilter::EXPORT_PACK_FOLDER);
+	preset->add_export_file(p_folder);
+	EditorExport::get_singleton()->set_block_save_enabled(false);
+
+	String extension = p_output_file.get_extension().to_lower();
+	if (extension == "pck") {
+		return platform->export_pack(preset, false, p_output_file);
+	} else if (extension == "zip") {
+		return platform->export_zip(preset, false, p_output_file);
+	} else {
+		return ERR_INVALID_PARAMETER;
+	}
 }
 
 void EditorNode::show_accept(const String &p_text, const String &p_title) {
@@ -5629,6 +5687,7 @@ void EditorNode::_bind_methods() {
 	ClassDB::bind_method("_menu_confirm_current", &EditorNode::_menu_confirm_current);
 	ClassDB::bind_method("_dialog_action", &EditorNode::_dialog_action);
 	ClassDB::bind_method("_editor_select", &EditorNode::_editor_select);
+	ClassDB::bind_method("_pack_folder_confirmed", &EditorNode::_pack_folder_confirmed);
 	ClassDB::bind_method("_node_renamed", &EditorNode::_node_renamed);
 	ClassDB::bind_method("edit_node", &EditorNode::edit_node);
 	ClassDB::bind_method("_unhandled_input", &EditorNode::_unhandled_input);
@@ -5702,6 +5761,7 @@ void EditorNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_bottom_panel_raise_toggled"), &EditorNode::_bottom_panel_raise_toggled);
 
 	ClassDB::bind_method(D_METHOD("_on_plugin_ready"), &EditorNode::_on_plugin_ready);
+	ClassDB::bind_method(D_METHOD("_pack_folder_request", "folder"), &EditorNode::_pack_folder_request);
 
 	ClassDB::bind_method(D_METHOD("_video_driver_selected"), &EditorNode::_video_driver_selected);
 
@@ -6678,6 +6738,7 @@ EditorNode::EditorNode() {
 	filesystem_dock = memnew(FileSystemDock(this));
 	filesystem_dock->connect("inherit", this, "_inherit_request");
 	filesystem_dock->connect("instance", this, "_instance_request");
+	filesystem_dock->connect("pack_folder", this, "_pack_folder_request");
 	filesystem_dock->connect("display_mode_changed", this, "_save_docks");
 
 	// Scene: Top left
@@ -6848,6 +6909,15 @@ EditorNode::EditorNode() {
 
 	file->connect("file_selected", this, "_dialog_action");
 	file_templates->connect("file_selected", this, "_dialog_action");
+
+	file_pack_folder = memnew(EditorFileDialog);
+	file_pack_folder->set_access(EditorFileDialog::ACCESS_FILESYSTEM);
+	file_pack_folder->set_mode(EditorFileDialog::MODE_SAVE_FILE);
+	file_pack_folder->set_title(TTR("Pack Folder"));
+	file_pack_folder->add_filter("*.pck");
+	file_pack_folder->add_filter("*.zip");
+	file_pack_folder->connect("file_selected", this, "_pack_folder_confirmed");
+	gui_base->add_child(file_pack_folder);
 
 	preview_gen = memnew(AudioStreamPreviewGenerator);
 	add_child(preview_gen);

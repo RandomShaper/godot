@@ -331,6 +331,8 @@ private:
 	String current_path;
 	MenuButton *update_spinner;
 
+	EditorFileDialog *file_pack_folder;
+
 	String defer_load_scene;
 	Node *_last_instanced_scene;
 
@@ -441,6 +443,7 @@ private:
 	bool opening_prev;
 
 	void _dialog_action(String p_file);
+	void _pack_folder_confirmed(String p_file);
 
 	void _edit_current();
 	void _dialog_display_save_error(String p_file, Error p_error);
@@ -489,6 +492,7 @@ private:
 
 	void _inherit_request(String p_file);
 	void _instance_request(const Vector<String> &p_files);
+	void _pack_folder_request(const String &p_folder);
 
 	void _display_top_editors(bool p_display);
 	void _set_top_editors(Vector<EditorPlugin *> p_editor_plugins_over);
@@ -561,7 +565,8 @@ private:
 		String preset;
 		String path;
 		bool debug;
-		bool pack_only;
+		String folder;
+
 	} export_defer;
 
 	bool cmdline_export_mode;
@@ -790,6 +795,8 @@ public:
 	void _copy_warning(const String &p_str);
 
 	Error export_preset(const String &p_preset, const String &p_path, bool p_debug, bool p_pack_only);
+	Error pack_folder(const String &p_folder, const String &p_output_file);
+	Error do_folder_pack(const String &p_folder, const String &p_output_file);
 
 	static void register_editor_types();
 	static void unregister_editor_types();
