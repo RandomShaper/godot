@@ -144,6 +144,9 @@ static bool debug_navigation = false;
 #endif
 static int frame_delay = 0;
 static bool disable_render_loop = false;
+#ifdef TOOLS_ENABLED
+static bool disable_pack_mount = false;
+#endif
 static int fixed_fps = -1;
 static bool print_fps = false;
 
@@ -289,6 +292,9 @@ void Main::print_help(const char *p_binary) {
 	OS::get_singleton()->print("  --time-scale <scale>             Force time scale (higher values are faster, 1.0 is normal speed).\n");
 	OS::get_singleton()->print("  --disable-render-loop            Disable render loop so rendering only occurs when called explicitly from script.\n");
 	OS::get_singleton()->print("  --disable-crash-handler          Disable crash handler when supported by the platform code.\n");
+#ifdef TOOLS_ENABLED
+	OS::get_singleton()->print("  --disable-pack-mount             Disable discovery and mounting of pack files.\n");
+#endif
 	OS::get_singleton()->print("  --fixed-fps <fps>                Force a fixed number of frames per second. This setting disables real-time synchronization.\n");
 	OS::get_singleton()->print("  --print-fps                      Print the frames per second to the stdout.\n");
 	OS::get_singleton()->print("\n");
@@ -836,6 +842,10 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			}
 		} else if (I->get() == "--disable-render-loop") {
 			disable_render_loop = true;
+#ifdef TOOLS_ENABLED
+		} else if (I->get() == "--disable-pack-mount") {
+			disable_pack_mount = true;
+#endif
 		} else if (I->get() == "--fixed-fps") {
 			if (I->next()) {
 				fixed_fps = I->next()->get().to_int();
@@ -1221,7 +1231,11 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	message_queue = memnew(MessageQueue);
 
 #ifdef TOOLS_ENABLED
-	if (!project_manager) {
+	if (!project_manager && !disable_pack_mount) {
+		PoolStringArray whitelist_patterns;
+		whitelist_patterns.push_back("*");
+		whitelist_patterns = _GLOBAL_DEF("editor/pack_mount_whitelist_patterns", whitelist_patterns, true);
+
 		String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 		DirAccess *da = DirAccess::open(exec_dir);
 		if (da) {
@@ -1233,9 +1247,20 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 				}
 				String extension = f.get_extension().to_lower();
 				if (!da->current_is_dir() && (extension == "pck" || extension == "zip")) {
-					PackedData::get_singleton()->set_disabled(false);
-					print_line("Mounting " + f);
-					ProjectSettings::get_singleton()->load_pack(exec_dir.plus_file(f));
+					bool matched = false;
+					for (int i = 0; i < whitelist_patterns.size(); ++i) {
+						if (f.matchn(whitelist_patterns[i])) {
+							matched = true;
+							break;
+						}
+					}
+					if (matched) {
+						PackedData::get_singleton()->set_disabled(false);
+						print_line("Mounting " + f);
+						ProjectSettings::get_singleton()->load_pack(exec_dir.plus_file(f));
+					} else {
+						print_line("Skipping non-whitelisted " + f);
+					}
 				}
 			}
 			memdelete(da);
