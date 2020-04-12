@@ -58,9 +58,12 @@ private:
 
 	StringName action;
 	bool passby_press;
+	bool release_only_if_over;
 	int finger_pressed;
 
 	VisibilityMode visibility;
+
+	bool is_down;
 
 	void _input(const Ref<InputEvent> &p_event);
 
@@ -102,6 +105,9 @@ public:
 
 	void set_passby_press(bool p_enable);
 	bool is_passby_press_enabled() const;
+
+	void set_release_only_if_over(bool p_enable);
+	bool is_release_only_if_over_enabled() const;
 
 	void set_visibility_mode(VisibilityMode p_mode);
 	VisibilityMode get_visibility_mode() const;

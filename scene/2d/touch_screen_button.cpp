@@ -117,7 +117,7 @@ void TouchScreenButton::_notification(int p_what) {
 			if (!Engine::get_singleton()->is_editor_hint() && !OS::get_singleton()->has_touchscreen_ui_hint() && visibility == VISIBILITY_TOUCHSCREEN_ONLY)
 				return;
 
-			if (finger_pressed != -1) {
+			if (is_down) {
 
 				if (texture_pressed.is_valid())
 					draw_texture(texture_pressed, Point2());
@@ -177,7 +177,7 @@ void TouchScreenButton::_notification(int p_what) {
 
 bool TouchScreenButton::is_pressed() const {
 
-	return finger_pressed != -1;
+	return is_down;
 }
 
 void TouchScreenButton::set_action(const String &p_action) {
@@ -201,10 +201,8 @@ void TouchScreenButton::_input(const Ref<InputEvent> &p_event) {
 	ERR_FAIL_COND(!is_visible_in_tree());
 
 	const InputEventScreenTouch *st = Object::cast_to<InputEventScreenTouch>(*p_event);
-
+	const InputEventScreenDrag *sd = Object::cast_to<InputEventScreenDrag>(*p_event);
 	if (passby_press) {
-
-		const InputEventScreenDrag *sd = Object::cast_to<InputEventScreenDrag>(*p_event);
 
 		if (st && !st->is_pressed() && finger_pressed == st->get_index()) {
 
@@ -245,7 +243,22 @@ void TouchScreenButton::_input(const Ref<InputEvent> &p_event) {
 				}
 			} else {
 				if (st->get_index() == finger_pressed) {
+					if (release_only_if_over && !is_down) {
+						finger_pressed = -1;
+						return;
+					}
 					_release();
+				}
+			}
+		} else if (sd) {
+
+			if (release_only_if_over) {
+				if (sd->get_index() == finger_pressed) {
+					bool was_down = is_down;
+					is_down = _is_point_inside(sd->get_position());
+					if (is_down != was_down) {
+						update();
+					}
 				}
 			}
 		}
@@ -287,6 +300,7 @@ bool TouchScreenButton::_is_point_inside(const Point2 &p_point) {
 void TouchScreenButton::_press(int p_finger_pressed) {
 
 	finger_pressed = p_finger_pressed;
+	is_down = true;
 
 	if (action != StringName()) {
 
@@ -305,6 +319,7 @@ void TouchScreenButton::_press(int p_finger_pressed) {
 void TouchScreenButton::_release(bool p_exiting_tree) {
 
 	finger_pressed = -1;
+	is_down = false;
 
 	if (action != StringName()) {
 
@@ -365,6 +380,16 @@ bool TouchScreenButton::is_passby_press_enabled() const {
 	return passby_press;
 }
 
+void TouchScreenButton::set_release_only_if_over(bool p_enable) {
+
+	release_only_if_over = p_enable;
+}
+
+bool TouchScreenButton::is_release_only_if_over_enabled() const {
+
+	return release_only_if_over;
+}
+
 void TouchScreenButton::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_texture", "texture"), &TouchScreenButton::set_texture);
@@ -394,6 +419,9 @@ void TouchScreenButton::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_passby_press", "enabled"), &TouchScreenButton::set_passby_press);
 	ClassDB::bind_method(D_METHOD("is_passby_press_enabled"), &TouchScreenButton::is_passby_press_enabled);
 
+	ClassDB::bind_method(D_METHOD("set_release_only_if_over", "enabled"), &TouchScreenButton::set_release_only_if_over);
+	ClassDB::bind_method(D_METHOD("is_release_only_if_over_enabled"), &TouchScreenButton::is_release_only_if_over_enabled);
+
 	ClassDB::bind_method(D_METHOD("is_pressed"), &TouchScreenButton::is_pressed);
 
 	ClassDB::bind_method(D_METHOD("_input"), &TouchScreenButton::_input);
@@ -405,6 +433,7 @@ void TouchScreenButton::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "shape_centered"), "set_shape_centered", "is_shape_centered");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "shape_visible"), "set_shape_visible", "is_shape_visible");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "passby_press"), "set_passby_press", "is_passby_press_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "release_only_if_over"), "set_release_only_if_over", "is_release_only_if_over_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "action"), "set_action", "get_action");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "visibility_mode", PROPERTY_HINT_ENUM, "Always,TouchScreen Only"), "set_visibility_mode", "get_visibility_mode");
 
@@ -419,7 +448,9 @@ TouchScreenButton::TouchScreenButton() {
 
 	finger_pressed = -1;
 	passby_press = false;
+	release_only_if_over = false;
 	visibility = VISIBILITY_ALWAYS;
+	is_down = false;
 	shape_centered = true;
 	shape_visible = true;
 	unit_rect = Ref<RectangleShape2D>(memnew(RectangleShape2D));
