@@ -454,13 +454,6 @@ FRAGMENT_SHADER_CODE
 				color);
 #endif
 
-		light *= real_light_color;
-
-		if (normal_used) {
-			vec3 light_normal = normalize(vec3(light_vec, -real_light_height));
-			light *= max(dot(-light_normal, normal), 0.0);
-		}
-
 		color *= light;
 
 #ifdef USE_SHADOWS
