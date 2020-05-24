@@ -541,6 +541,7 @@ public:
 	FUNC2(canvas_item_set_material, RID, RID)
 
 	FUNC2(canvas_item_set_use_parent_material, RID, bool)
+	FUNC2(canvas_item_set_force_additive_blend, RID, bool)
 
 	FUNC0R(RID, canvas_light_create)
 	FUNC2(canvas_light_attach_to_canvas, RID, RID)

@@ -1072,6 +1072,17 @@ bool CanvasItem::get_use_parent_material() const {
 	return use_parent_material;
 }
 
+void CanvasItem::set_force_additive_blend(bool p_force_additive_blend) {
+
+	force_additive_blend = p_force_additive_blend;
+	VS::get_singleton()->canvas_item_set_force_additive_blend(canvas_item, p_force_additive_blend);
+}
+
+bool CanvasItem::get_force_additive_blend() const {
+
+	return force_additive_blend;
+}
+
 Ref<Material> CanvasItem::get_material() const {
 
 	return material;
@@ -1210,6 +1221,9 @@ void CanvasItem::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_use_parent_material", "enable"), &CanvasItem::set_use_parent_material);
 	ClassDB::bind_method(D_METHOD("get_use_parent_material"), &CanvasItem::get_use_parent_material);
 
+	ClassDB::bind_method(D_METHOD("set_force_additive_blend", "enable"), &CanvasItem::set_force_additive_blend);
+	ClassDB::bind_method(D_METHOD("get_force_additive_blend"), &CanvasItem::get_force_additive_blend);
+
 	ClassDB::bind_method(D_METHOD("set_notify_local_transform", "enable"), &CanvasItem::set_notify_local_transform);
 	ClassDB::bind_method(D_METHOD("is_local_transform_notification_enabled"), &CanvasItem::is_local_transform_notification_enabled);
 
@@ -1234,6 +1248,7 @@ void CanvasItem::_bind_methods() {
 	ADD_GROUP("Material", "");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial,CanvasItemMaterial"), "set_material", "get_material");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_parent_material"), "set_use_parent_material", "get_use_parent_material");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "force_additive_blend"), "set_force_additive_blend", "get_force_additive_blend");
 	//exporting these things doesn't really make much sense i think
 	// ADD_PROPERTY(PropertyInfo(Variant::BOOL, "toplevel", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR), "set_as_toplevel", "is_set_as_toplevel");
 	// ADD_PROPERTY(PropertyInfo(Variant::BOOL,"transform/notify"),"set_transform_notify","is_transform_notify_enabled");
@@ -1334,6 +1349,7 @@ CanvasItem::CanvasItem() :
 	//viewport=NULL;
 	canvas_layer = NULL;
 	use_parent_material = false;
+	force_additive_blend = false;
 	global_invalid = true;
 	notify_local_transform = false;
 	notify_transform = false;

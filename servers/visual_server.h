@@ -931,6 +931,7 @@ public:
 	virtual void canvas_item_set_material(RID p_item, RID p_material) = 0;
 
 	virtual void canvas_item_set_use_parent_material(RID p_item, bool p_enable) = 0;
+	virtual void canvas_item_set_force_additive_blend(RID p_item, bool p_enable) = 0;
 
 	virtual RID canvas_light_create() = 0;
 	virtual void canvas_light_attach_to_canvas(RID p_light, RID p_canvas) = 0;

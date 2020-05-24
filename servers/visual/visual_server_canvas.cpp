@@ -107,6 +107,7 @@ void VisualServerCanvas::_render_canvas_item(Item *p_canvas_item, const Transfor
 		p_material_owner = ci;
 		ci->material_owner = NULL;
 	}
+	ci->force_additive_blend = p_canvas_item->force_additive_blend;
 
 	Color modulate(ci->modulate.r * p_modulate.r, ci->modulate.g * p_modulate.g, ci->modulate.b * p_modulate.b, ci->modulate.a * p_modulate.a);
 
@@ -996,6 +997,14 @@ void VisualServerCanvas::canvas_item_set_use_parent_material(RID p_item, bool p_
 	ERR_FAIL_COND(!canvas_item);
 
 	canvas_item->use_parent_material = p_enable;
+}
+
+void VisualServerCanvas::canvas_item_set_force_additive_blend(RID p_item, bool p_enable) {
+
+	Item *canvas_item = canvas_item_owner.get(p_item);
+	ERR_FAIL_COND(!canvas_item);
+
+	canvas_item->force_additive_blend = p_enable;
 }
 
 RID VisualServerCanvas::canvas_light_create() {

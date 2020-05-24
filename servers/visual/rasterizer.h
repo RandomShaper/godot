@@ -879,6 +879,7 @@ public:
 		Rect2 final_clip_rect;
 		Item *final_clip_owner;
 		Item *material_owner;
+		bool force_additive_blend;
 		ViewportRender *vp_render;
 		bool distance_field;
 		bool light_masked;
@@ -1102,6 +1103,7 @@ public:
 			custom_rect = false;
 			behind = false;
 			material_owner = NULL;
+			force_additive_blend = false;
 			copy_back_buffer = NULL;
 			distance_field = false;
 			light_masked = false;

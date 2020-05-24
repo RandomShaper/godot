@@ -200,6 +200,7 @@ private:
 	bool block_transform_notify;
 	bool behind;
 	bool use_parent_material;
+	bool force_additive_blend;
 	bool notify_local_transform;
 	bool notify_transform;
 
@@ -368,6 +369,9 @@ public:
 
 	virtual void set_use_parent_material(bool p_use_parent_material);
 	bool get_use_parent_material() const;
+
+	void set_force_additive_blend(bool p_force_additive_blend);
+	bool get_force_additive_blend() const;
 
 	Ref<InputEvent> make_input_local(const Ref<InputEvent> &p_event) const;
 	Vector2 make_canvas_position_local(const Vector2 &screen_point) const;
