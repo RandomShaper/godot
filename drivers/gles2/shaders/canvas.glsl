@@ -87,9 +87,7 @@ varying vec4 local_rot;
 varying highp vec2 pos;
 #endif
 
-const bool at_light_pass = true;
-#else
-const bool at_light_pass = false;
+#define at_light_pass
 #endif
 
 /* clang-format off */
@@ -318,9 +316,7 @@ varying highp vec2 pos;
 
 #endif
 
-const bool at_light_pass = true;
-#else
-const bool at_light_pass = false;
+#define at_light_pass
 #endif
 
 uniform bool use_default_normal;

@@ -678,6 +678,11 @@ String ShaderCompilerGLES2::_dump_node_code(SL::Node *p_node, int p_level, Gener
 								code += "textureCubeLod";
 							}
 
+						} else if (var_node->name == "texao") {
+
+							code += "texao";
+							*p_actions.usage_flag_texao = true;
+
 						} else if (var_node->name == "mix") {
 
 							switch (op_node->arguments[3]->get_datatype()) {
@@ -794,15 +799,30 @@ String ShaderCompilerGLES2::_dump_node_code(SL::Node *p_node, int p_level, Gener
 			if (cf_node->flow_op == SL::FLOW_OP_IF) {
 
 				code += _mktab(p_level);
-				code += "if (";
-				code += _dump_node_code(cf_node->expressions[0], p_level, r_gen_code, p_actions, p_default_actions, p_assigning);
+				String condition = _dump_node_code(cf_node->expressions[0], p_level, r_gen_code, p_actions, p_default_actions, p_assigning);
+				bool preprocessable = condition.trim_prefix("!") == "at_light_pass";
+				bool negated = condition[0] == '!';
+				if (negated) {
+					condition = condition.trim_prefix("!");
+				}
+				if (preprocessable) {
+					code += negated ? "#if !defined(" : "#if defined(";
+				} else {
+					code += "if (";
+				}
+				code += condition;
 				code += ")\n";
 				code += _dump_node_code(cf_node->blocks[0], p_level + 1, r_gen_code, p_actions, p_default_actions, p_assigning);
 
 				if (cf_node->blocks.size() == 2) {
 					code += _mktab(p_level);
-					code += "else\n";
+					code += preprocessable ? "#else\n" : "else\n";
 					code += _dump_node_code(cf_node->blocks[1], p_level + 1, r_gen_code, p_actions, p_default_actions, p_assigning);
+				}
+
+				if (preprocessable) {
+					code += _mktab(p_level);
+					code += "#endif\n";
 				}
 			} else if (cf_node->flow_op == SL::FLOW_OP_DO) {
 				code += _mktab(p_level);
@@ -913,6 +933,7 @@ ShaderCompilerGLES2::ShaderCompilerGLES2() {
 	actions[VS::SHADER_CANVAS_ITEM].renames["EXTRA_MATRIX"] = "extra_matrix_instance";
 	actions[VS::SHADER_CANVAS_ITEM].renames["TIME"] = "time";
 	actions[VS::SHADER_CANVAS_ITEM].renames["AT_LIGHT_PASS"] = "at_light_pass";
+	actions[VS::SHADER_CANVAS_ITEM].renames["AO_ENABLED"] = "ao_enabled";
 	actions[VS::SHADER_CANVAS_ITEM].renames["INSTANCE_CUSTOM"] = "instance_custom";
 
 	actions[VS::SHADER_CANVAS_ITEM].renames["COLOR"] = "color";
@@ -947,6 +968,7 @@ ShaderCompilerGLES2::ShaderCompilerGLES2() {
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["LIGHT"] = "#define USE_LIGHT_SHADER_CODE\n";
 	actions[VS::SHADER_CANVAS_ITEM].render_mode_defines["skip_vertex_transform"] = "#define SKIP_TRANSFORM_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["SHADOW_VEC"] = "#define SHADOW_VEC_USED\n";
+	actions[VS::SHADER_CANVAS_ITEM].usage_defines["texao"] = "#define AO_USED\n";
 
 	// Ported from GLES3
 
