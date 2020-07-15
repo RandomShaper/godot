@@ -473,6 +473,11 @@ bool RasterizerCanvasGLES2::prefill_joined_item(FillState &r_fill_state, int &r_
 						src_max.x -= uv_epsilon;
 						src_max.y -= uv_epsilon;
 					}
+
+					// Fix atlas bleeding at up to 3:1 scale ratio (losing some pixel perfectness)
+					Vector2 corr = 0.333333f * texpixel_size;
+					src_min += corr;
+					src_max -= corr;
 				} else {
 					src_min = Vector2(0, 0);
 					src_max = Vector2(1, 1);
@@ -964,6 +969,14 @@ void RasterizerCanvasGLES2::render_batches(Item::Command *const *p_commands, Ite
 
 									Rect2 src_rect = (r->flags & CANVAS_RECT_REGION) ? Rect2(r->source.position * texpixel_size, r->source.size * texpixel_size) : Rect2(0, 0, 1, 1);
 
+									// Fix atlas bleeding at up to 3:1 scale ratio (losing some pixel perfectness)
+									if (r->flags & CANVAS_RECT_REGION) {
+										Vector2 corr = (state.at_style_pass ? storage->frame.current_rt->style.downscale : 0.333333f) * texpixel_size;
+
+										src_rect.position += corr;
+										src_rect.size -= 2.0f * corr;
+									}
+
 									Vector2 uvs[4] = {
 										src_rect.position,
 										src_rect.position + Vector2(src_rect.size.x, 0.0),
@@ -1054,6 +1067,14 @@ void RasterizerCanvasGLES2::render_batches(Item::Command *const *p_commands, Ite
 
 									Size2 texpixel_size(1.0 / tex->width, 1.0 / tex->height);
 									Rect2 src_rect = (r->flags & CANVAS_RECT_REGION) ? Rect2(r->source.position * texpixel_size, r->source.size * texpixel_size) : Rect2(0, 0, 1, 1);
+
+									// Fix atlas bleeding at up to 3:1 scale ratio (losing some pixel perfectness)
+									if (r->flags & CANVAS_RECT_REGION) {
+										Vector2 corr = (state.at_style_pass ? storage->frame.current_rt->style.downscale : 0.333333f) * texpixel_size;
+
+										src_rect.position += corr;
+										src_rect.size -= 2.0f * corr;
+									}
 
 									Rect2 dst_rect = Rect2(r->rect.position, r->rect.size);
 
