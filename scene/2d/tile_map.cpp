@@ -430,6 +430,9 @@ void TileMap::update_dirty_quadrants() {
 				vs->canvas_item_set_transform(canvas_item, xform);
 				vs->canvas_item_set_light_mask(canvas_item, get_light_mask());
 				vs->canvas_item_set_z_index(canvas_item, z_index);
+				Color sm = get_retro_coloring();
+				sm.g = 1.0f;
+				vs->canvas_item_set_retro_coloring(canvas_item, sm);
 
 				q.canvas_items.push_back(canvas_item);
 

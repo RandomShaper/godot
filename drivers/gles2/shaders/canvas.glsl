@@ -15,6 +15,17 @@ uniform highp mat4 projection_matrix;
 
 #include "stdlib.glsl"
 
+#ifdef AT_AO_PASS
+#define AT_STYLE_PASS
+#endif
+#ifdef AT_RETRO_PASS
+#define AT_STYLE_PASS
+#endif
+
+#ifdef AT_STYLE_PASS
+uniform bool alpha_is_opacity;
+#endif
+
 uniform highp mat4 modelview_matrix;
 uniform highp mat4 extra_matrix;
 attribute highp vec2 vertex; // attrib:0
@@ -168,13 +179,22 @@ VERTEX_SHADER_CODE
 	outvec = modelview_matrix * outvec;
 #endif
 
+#if !defined(AT_STYLE_PASS)
 	color_interp = color;
+#else
+	color_interp = vec4(1.0);
+	if (alpha_is_opacity) {
+		color_interp.a = color.a;
+	}
+#endif
 
+#if !defined(AT_STYLE_PASS)
 #ifdef USE_PIXEL_SNAP
 	outvec.xy = floor(outvec + 0.5).xy;
 	// precision issue on some hardware creates artifacts within texture
 	// offset uv by a small amount to avoid
 	uv += 1e-5;
+#endif
 #endif
 
 #ifdef USE_SKELETON
@@ -283,7 +303,15 @@ uniform sampler2D screen_texture; // texunit:-4
 
 #endif
 
-#ifdef SCREEN_UV_USED
+#ifdef AT_AO_PASS
+#define AT_STYLE_PASS
+#endif
+#ifdef AT_RETRO_PASS
+#define AT_STYLE_PASS
+uniform highp vec2 ao_offset;
+#endif
+
+#if defined(SCREEN_UV_USED) || defined(AO_USED)
 
 uniform vec2 screen_pixel_size;
 
@@ -321,11 +349,82 @@ varying highp vec2 pos;
 
 uniform bool use_default_normal;
 
+#ifdef AO_ENABLED
+#define ao_enabled
+#endif
+
+#ifdef AO_USED
+uniform sampler2D ao_tex; // texunit:-5
+uniform highp float ao_depth;
+uniform bool alpha_is_opacity;
+uniform highp vec2 ao_pixel_size;
+uniform highp vec2 ao_offset;
+#endif
+
+#define AO_DEPTH_STEP 0.1 // Shared between rasterizer_canvas_gles2.cpp, canvas.glsl and shaders in the game
+
+#ifdef AT_STYLE_PASS
+uniform highp float ao_depth;
+uniform bool alpha_is_opacity;
+#endif
+
+#define AO_MIN_ALPHA -0.15
+#define AO_MAX_ALPHA 0.9
+
 /* clang-format off */
 
 FRAGMENT_SHADER_GLOBALS
 
 /* clang-format on */
+
+#ifdef AO_USED
+vec3 mix_ao(vec3 a, vec3 b, float x) {
+	return vec3(
+			max(a.r, b.r),
+			mix(a.gb, b.gb, x));
+}
+
+// To avoid casted shadows over elements (like hero casting over street lamps)
+#define FRG_HARD_Z_0_AO_DEPTH 0.5
+
+vec2 texao(float alpha) {
+	vec2 screen_uv = gl_FragCoord.xy * screen_pixel_size;
+	vec2 uv = vec2(screen_uv.x, screen_uv.y) + ao_offset;
+
+	uv -= ao_pixel_size * 0.5;
+	vec2 f = fract(uv / ao_pixel_size);
+	uv += (0.5 - f) * ao_pixel_size;
+
+	vec3 fs[4];
+	fs[0] = texture2D(ao_tex, uv).rgb;
+	fs[1] = texture2D(ao_tex, uv + vec2(ao_pixel_size.x, 0.0)).rgb;
+	fs[2] = texture2D(ao_tex, uv + vec2(0.0, ao_pixel_size.y)).rgb;
+	fs[3] = texture2D(ao_tex, uv + ao_pixel_size).rgb;
+
+	vec3 b = mix_ao(
+			mix_ao(fs[0], fs[1], f.x),
+			mix_ao(fs[2], fs[3], f.x),
+			f.y);
+
+	float layerified = ceil(b.r * (1.0 / AO_DEPTH_STEP)) * AO_DEPTH_STEP;
+
+	vec2 ao;
+	if (ao_depth >= layerified - AO_DEPTH_STEP * 0.05) {
+		ao = vec2(0.0, b.b);
+	} else {
+		ao = vec2(b.g * (1.0 / AO_DEPTH_STEP), b.b);
+		if (ao_depth > 0.001) {
+			// Remove own AO
+			ao.x = max(0.0, ao.x - alpha);
+		}
+	}
+	if (ao_depth > FRG_HARD_Z_0_AO_DEPTH + 0.001) {
+		ao.y = 0.0;
+	}
+
+	return vec2(1.0) - ao;
+}
+#endif
 
 void light_compute(
 		inout vec4 light,
@@ -363,14 +462,26 @@ void main() {
 #endif
 
 #if !defined(COLOR_USED)
+#if !defined(AT_STYLE_PASS)
 	//default behavior, texture by color
 	color *= texture2D(color_texture, uv);
+#elif defined(AT_AO_PASS)
+	color.a *= texture2D(color_texture, uv).a;
+#elif defined(AT_RETRO_PASS)
+	// Not ignore texture and vertex alpha?
+	if (final_modulate.a >= 0.0) {
+		color.a *= texture2D(color_texture, uv).a;
+	} else {
+		color.a = 1.0;
+	}
+#endif
 #endif
 
 #ifdef SCREEN_UV_USED
 	vec2 screen_uv = gl_FragCoord.xy * screen_pixel_size;
 #endif
 
+#if !defined(AT_STYLE_PASS)
 	vec3 normal;
 
 #if defined(NORMAL_USED)
@@ -395,6 +506,7 @@ void main() {
 		vec3 normal_map = vec3(0.0, 0.0, 1.0);
 		normal_used = true;
 #endif
+#endif
 
 		/* clang-format off */
 
@@ -402,6 +514,7 @@ FRAGMENT_SHADER_CODE
 
 		/* clang-format on */
 
+#if !defined(AT_STYLE_PASS)
 #if defined(NORMALMAP_USED)
 		normal = mix(vec3(0.0, 0.0, 1.0), normal_map * vec3(2.0, -2.0, 1.0) - vec3(1.0, -1.0, 0.0), normal_depth);
 #endif
@@ -409,8 +522,41 @@ FRAGMENT_SHADER_CODE
 #if !defined(MODULATE_USED)
 	color *= final_modulate;
 #endif
+#else
+	// Any non-normal style
+	color.rgb *= final_modulate.rgb;
+	if (alpha_is_opacity) {
+		color.a *= final_modulate.a;
+#if defined(AT_RETRO_PASS)
+		// In case final_modulate.a < 0.0 (ignore texture alpha)
+		color.a = abs(color.a);
+#endif
+	}
+#if defined(AT_AO_PASS)
+	float opacity = max(0.0, mix(AO_MIN_ALPHA, AO_MAX_ALPHA, color.a));
+	if (opacity < 0.003) {
+		discard;
+	}
+	float contribution = AO_DEPTH_STEP * opacity;
+	color = vec4(
+			// Accumulated AO
+			contribution,
+			color.a,
+			0.0,
+			// Top layer AO (overwritten)
+			(ao_depth - AO_DEPTH_STEP) + contribution);
+#elif defined(AT_RETRO_PASS)
+	if (color.a < 0.3) {
+		discard;
+	} else if (color.a < 0.6) {
+		color.a = mod(float(int(gl_FragCoord.x + gl_FragCoord.y + ao_offset.x + ao_offset.y)), 2.0);
+	} else {
+		color.a = 1.0;
+	}
+#endif
+#endif
 
-#ifdef USE_LIGHTING
+#if defined(USE_LIGHTING) && !defined(AT_STYLE_PASS)
 
 	vec2 light_vec = transformed_light_uv;
 	vec2 shadow_vec = transformed_light_uv;

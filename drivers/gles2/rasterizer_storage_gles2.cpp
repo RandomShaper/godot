@@ -1435,6 +1435,7 @@ void RasterizerStorageGLES2::_update_shader(Shader *p_shader) const {
 			p_shader->canvas_item.uses_modulate = false;
 			p_shader->canvas_item.uses_color = false;
 			p_shader->canvas_item.uses_vertex = false;
+			p_shader->canvas_item.uses_texao = false;
 			p_shader->canvas_item.batch_flags = 0;
 
 			shaders.actions_canvas.render_mode_values["blend_add"] = Pair<int *, int>(&p_shader->canvas_item.blend_mode, Shader::CanvasItem::BLEND_MODE_ADD);
@@ -1453,6 +1454,8 @@ void RasterizerStorageGLES2::_update_shader(Shader *p_shader) const {
 			shaders.actions_canvas.usage_flag_pointers["MODULATE"] = &p_shader->canvas_item.uses_modulate;
 			shaders.actions_canvas.usage_flag_pointers["COLOR"] = &p_shader->canvas_item.uses_color;
 			shaders.actions_canvas.usage_flag_pointers["VERTEX"] = &p_shader->canvas_item.uses_vertex;
+
+			shaders.actions_canvas.usage_flag_texao = &p_shader->canvas_item.uses_texao;
 
 			actions = &shaders.actions_canvas;
 			actions->uniforms = &p_shader->uniforms;
@@ -1933,6 +1936,22 @@ void RasterizerStorageGLES2::material_set_render_priority(RID p_material, int pr
 	ERR_FAIL_COND(!material);
 
 	material->render_priority = priority;
+}
+
+void RasterizerStorageGLES2::material_set_ao_depth(RID p_material, float p_ao_depth) {
+
+	Material *material = material_owner.get(p_material);
+	ERR_FAIL_COND(!material);
+
+	material->ao_depth = p_ao_depth;
+}
+
+void RasterizerStorageGLES2::material_set_alpha_is_opacity(RID p_material, bool p_alpha_is_opacity) {
+
+	Material *material = material_owner.get(p_material);
+	ERR_FAIL_COND(!material);
+
+	material->alpha_is_opacity = p_alpha_is_opacity;
 }
 
 void RasterizerStorageGLES2::_update_material(Material *p_material) {
@@ -4893,6 +4912,30 @@ void RasterizerStorageGLES2::_render_target_allocate(RenderTarget *rt) {
 		}
 	}
 
+	if (rt == config.main_rt) {
+		rt->style.downscale = rt->height / AO_VERTICAL_BLOCKS;
+		rt->style.width = rt->width / rt->style.downscale;
+		rt->style.height = rt->height / rt->style.downscale;
+
+		for (int i = 0; i < 3; ++i) {
+			glGenFramebuffers(1, &rt->style.fbo[i]);
+			glBindFramebuffer(GL_FRAMEBUFFER, rt->style.fbo[i]);
+
+			glGenTextures(1, &rt->style.color[i]);
+			glBindTexture(GL_TEXTURE_2D, rt->style.color[i]);
+
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rt->style.width, rt->style.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->style.color[i], 0);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
+	}
+
 	// Allocate mipmap chains for post_process effects
 	if (!rt->flags[RasterizerStorage::RENDER_TARGET_NO_3D] && rt->width >= 2 && rt->height >= 2) {
 
@@ -5032,6 +5075,13 @@ void RasterizerStorageGLES2::_render_target_clear(RenderTarget *rt) {
 		rt->fbo = 0;
 	}
 
+	for (int i = 0; i < 3; ++i) {
+		if (rt->style.fbo[i]) {
+			glDeleteFramebuffers(1, &rt->style.fbo[i]);
+			glDeleteTextures(1, &rt->style.color[i]);
+		}
+	}
+
 	if (rt->external.fbo != 0) {
 		// free this
 		glDeleteFramebuffers(1, &rt->external.fbo);
@@ -5150,6 +5200,10 @@ void RasterizerStorageGLES2::render_target_set_size(RID p_render_target, int p_w
 
 	if (p_width == rt->width && p_height == rt->height)
 		return;
+
+	if (!config.main_rt) {
+		config.main_rt = rt;
+	}
 
 	_render_target_clear(rt);
 
@@ -5868,6 +5922,11 @@ String RasterizerStorageGLES2::get_video_adapter_vendor() const {
 	return (const char *)glGetString(GL_VENDOR);
 }
 
+void RasterizerStorageGLES2::set_render_style(VS::RenderStyle p_render_style) {
+
+	config.render_style = p_render_style;
+}
+
 void RasterizerStorageGLES2::initialize() {
 	RasterizerStorageGLES2::system_fbo = 0;
 
@@ -6216,6 +6275,10 @@ void RasterizerStorageGLES2::initialize() {
 
 	config.force_vertex_shading = GLOBAL_GET("rendering/quality/shading/force_vertex_shading");
 	config.use_fast_texture_filter = GLOBAL_GET("rendering/quality/filters/use_nearest_mipmap_filter");
+
+	config.main_rt = NULL;
+	config.render_style = VS::RENDER_STYLE_NORMAL;
+	config.current_render_style = VS::RENDER_STYLE_NORMAL;
 }
 
 void RasterizerStorageGLES2::finalize() {

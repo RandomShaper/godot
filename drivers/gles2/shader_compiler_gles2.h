@@ -45,6 +45,7 @@ public:
 		Map<StringName, bool *> render_mode_flags;
 		Map<StringName, bool *> usage_flag_pointers;
 		Map<StringName, bool *> write_flag_pointers;
+		bool *usage_flag_texao;
 
 		Map<StringName, ShaderLanguage::ShaderNode::Uniform> *uniforms;
 	};

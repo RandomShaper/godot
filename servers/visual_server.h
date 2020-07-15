@@ -68,6 +68,12 @@ public:
 	static VisualServer *get_singleton();
 	static VisualServer *create();
 
+	enum RenderStyle {
+		RENDER_STYLE_NORMAL,
+		RENDER_STYLE_AO,
+		RENDER_STYLE_RETRO,
+	};
+
 	enum {
 
 		NO_INDEX_ARRAY = -1,
@@ -219,6 +225,9 @@ public:
 
 	virtual void material_set_line_width(RID p_material, float p_width) = 0;
 	virtual void material_set_next_pass(RID p_material, RID p_next_material) = 0;
+
+	virtual void material_set_ao_depth(RID p_material, float p_ao_depth) = 0;
+	virtual void material_set_alpha_is_opacity(RID p_material, bool p_alpha_is_opacity) = 0;
 
 	/* MESH API */
 
@@ -893,6 +902,7 @@ public:
 	virtual void canvas_item_set_custom_rect(RID p_item, bool p_custom_rect, const Rect2 &p_rect = Rect2()) = 0;
 	virtual void canvas_item_set_modulate(RID p_item, const Color &p_color) = 0;
 	virtual void canvas_item_set_self_modulate(RID p_item, const Color &p_color) = 0;
+	virtual void canvas_item_set_retro_coloring(RID p_item, const Color &p_color) = 0;
 
 	virtual void canvas_item_set_draw_behind_parent(RID p_item, bool p_enable) = 0;
 
@@ -1034,6 +1044,8 @@ public:
 
 	/* Materials for 2D on 3D */
 
+	virtual void set_render_style(RenderStyle p_render_style) = 0;
+
 	/* TESTING */
 
 	virtual RID get_test_cube() = 0;
@@ -1073,6 +1085,7 @@ public:
 };
 
 // make variant understand the enums
+VARIANT_ENUM_CAST(VisualServer::RenderStyle);
 VARIANT_ENUM_CAST(VisualServer::CubeMapSide);
 VARIANT_ENUM_CAST(VisualServer::TextureFlags);
 VARIANT_ENUM_CAST(VisualServer::ShaderMode);

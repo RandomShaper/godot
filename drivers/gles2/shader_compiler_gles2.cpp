@@ -800,7 +800,7 @@ String ShaderCompilerGLES2::_dump_node_code(SL::Node *p_node, int p_level, Gener
 
 				code += _mktab(p_level);
 				String condition = _dump_node_code(cf_node->expressions[0], p_level, r_gen_code, p_actions, p_default_actions, p_assigning);
-				bool preprocessable = condition.trim_prefix("!") == "at_light_pass";
+				bool preprocessable = condition.trim_prefix("!") == "at_light_pass" || condition == "ao_enabled";
 				bool negated = condition[0] == '!';
 				if (negated) {
 					condition = condition.trim_prefix("!");

@@ -35,6 +35,9 @@
 #include "visual_server_globals.h"
 #include "visual_server_scene.h"
 
+// For AO
+#include "drivers/gles2/rasterizer_storage_gles2.h"
+
 static Transform2D _canvas_get_transform(VisualServerViewport::Viewport *p_viewport, VisualServerCanvas::Canvas *p_canvas, VisualServerViewport::Viewport::CanvasData *p_canvas_data, const Vector2 &p_vp_size) {
 
 	Transform2D xf = p_viewport->global_transform;
@@ -225,24 +228,39 @@ void VisualServerViewport::_draw_viewport(Viewport *p_viewport, ARVRInterface::E
 			scenario_draw_canvas_bg = false;
 		}
 
+		RasterizerStorageGLES2 *rsgles2 = static_cast<RasterizerStorageGLES2 *>(VSG::storage);
+		rsgles2->config.current_render_style = rsgles2->config.render_style;
+
 		for (Map<Viewport::CanvasKey, Viewport::CanvasData *>::Element *E = canvas_map.front(); E; E = E->next()) {
 
 			VisualServerCanvas::Canvas *canvas = static_cast<VisualServerCanvas::Canvas *>(E->get()->canvas);
+			bool at_main_viewport = !p_viewport->parent.is_valid();
+			bool at_ui_layer = E->get()->layer >= 100;
+			if (rsgles2->config.render_style == VS::RENDER_STYLE_RETRO && E->get()->layer != 0 && !at_ui_layer) {
+				continue;
+			}
 
 			Transform2D xform = _canvas_get_transform(p_viewport, canvas, E->get(), clip_rect.size);
 
 			RasterizerCanvas::Light *canvas_lights = NULL;
 
-			RasterizerCanvas::Light *ptr = lights;
 			int canvas_layer_id = E->get()->layer;
-			while (ptr) {
-				if (canvas_layer_id >= ptr->layer_min && canvas_layer_id <= ptr->layer_max) {
-					ptr->next_ptr = canvas_lights;
-					canvas_lights = ptr;
+			if (rsgles2->config.render_style != VS::RENDER_STYLE_RETRO) {
+				RasterizerCanvas::Light *ptr = lights;
+				while (ptr) {
+					if (canvas_layer_id >= ptr->layer_min && canvas_layer_id <= ptr->layer_max) {
+						ptr->next_ptr = canvas_lights;
+						canvas_lights = ptr;
+					}
+					ptr = ptr->filter_next_ptr;
 				}
-				ptr = ptr->filter_next_ptr;
 			}
 
+			if (rsgles2->config.render_style == VS::RENDER_STYLE_AO) {
+				rsgles2->config.current_render_style = E->get()->layer == 0 && at_main_viewport ? VS::RENDER_STYLE_AO : VS::RENDER_STYLE_NORMAL;
+			} else if (rsgles2->config.render_style == VS::RENDER_STYLE_RETRO) {
+				rsgles2->config.current_render_style = !at_ui_layer && at_main_viewport ? VS::RENDER_STYLE_RETRO : VS::RENDER_STYLE_NORMAL;
+			}
 			VSG::canvas->render_canvas(canvas, xform, canvas_lights, lights_with_mask, clip_rect, canvas_layer_id);
 			i++;
 

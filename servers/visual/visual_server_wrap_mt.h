@@ -145,6 +145,9 @@ public:
 	FUNC2(material_set_line_width, RID, float)
 	FUNC2(material_set_next_pass, RID, RID)
 
+	FUNC2(material_set_ao_depth, RID, float)
+	FUNC2(material_set_alpha_is_opacity, RID, bool)
+
 	/* MESH API */
 
 	FUNCRID(mesh)
@@ -510,6 +513,7 @@ public:
 	FUNC3(canvas_item_set_custom_rect, RID, bool, const Rect2 &)
 	FUNC2(canvas_item_set_modulate, RID, const Color &)
 	FUNC2(canvas_item_set_self_modulate, RID, const Color &)
+	FUNC2(canvas_item_set_retro_coloring, RID, const Color &)
 
 	FUNC2(canvas_item_set_draw_behind_parent, RID, bool)
 
@@ -592,6 +596,8 @@ public:
 	/* EVENT QUEUING */
 
 	FUNC3(request_frame_drawn_callback, Object *, const StringName &, const Variant &)
+
+	FUNC1(set_render_style, VS::RenderStyle)
 
 	virtual void init();
 	virtual void finish();

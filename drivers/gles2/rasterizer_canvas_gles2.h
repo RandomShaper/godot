@@ -307,9 +307,14 @@ public:
 	virtual void canvas_begin();
 	virtual void canvas_end();
 
+	void canvas_begin_style(const Vector2 &p_origin);
+	void canvas_end_style(const Vector2 &p_origin);
+	void canvas_render_items_ao(Item *p_item_list, int p_z);
+	void canvas_render_items_retro(Item *p_item_list, int p_z);
+
 private:
 	// legacy codepath .. to remove after testing
-	void _canvas_render_item(Item *p_ci, RenderItemState &r_ris);
+	void _canvas_render_item(int p_z, Item *p_ci, RenderItemState &r_ris);
 	void _canvas_item_render_commands(Item *p_item, Item *p_current_clip, bool &r_reclip, RasterizerStorageGLES2::Material *p_material);
 
 	// high level batch funcs
@@ -318,7 +323,7 @@ private:
 	void record_items(Item *p_item_list, int p_z);
 	void join_items(Item *p_item_list, int p_z);
 	void join_sorted_items();
-	bool try_join_item(Item *p_ci, RenderItemState &r_ris, bool &r_batch_break);
+	bool try_join_item(Item *p_ci, RenderItemState &r_ris, bool &r_batch_break, bool &r_skip);
 	void render_joined_item_commands(const BItemJoined &p_bij, Item *p_current_clip, bool &r_reclip, RasterizerStorageGLES2::Material *p_material, bool p_lit);
 	void render_batches(Item::Command *const *p_commands, Item *p_current_clip, bool &r_reclip, RasterizerStorageGLES2::Material *p_material);
 	bool prefill_joined_item(FillState &r_fill_state, int &r_command_start, Item *p_item, Item *p_current_clip, bool &r_reclip, RasterizerStorageGLES2::Material *p_material);
@@ -348,6 +353,9 @@ private:
 	bool _light_find_intersection(const Rect2 &p_item_rect, const Transform2D &p_light_xform, const Vector2 (&p_light_global_rect_pts)[4], Rect2 &r_cliprect) const;
 	bool _light_scissor_set(const Rect2 &p_item_rect, const Transform2D &p_light_xform, const Vector2 (&p_light_global_rect_pts)[4]) const;
 	void _calculate_scissor_threshold_area();
+
+	void _blur_ao();
+	void _blit_style();
 
 	// no need to compile these in in release, they are unneeded outside the editor and only add to executable size
 #ifdef DEBUG_ENABLED

@@ -77,6 +77,8 @@ class ShaderMaterial : public Material {
 
 	GDCLASS(ShaderMaterial, Material);
 	Ref<Shader> shader;
+	float ao_depth;
+	bool alpha_is_opacity;
 
 protected:
 	bool _set(const StringName &p_name, const Variant &p_value);
@@ -99,6 +101,12 @@ public:
 
 	void set_shader_param(const StringName &p_param, const Variant &p_value);
 	Variant get_shader_param(const StringName &p_param) const;
+
+	void set_ao_depth(float p_ao_depth);
+	float get_ao_depth() const;
+
+	void set_alpha_is_opacity(bool p_alpha_is_opacity);
+	bool is_alpha_opacity() const;
 
 	virtual Shader::Mode get_shader_mode() const;
 

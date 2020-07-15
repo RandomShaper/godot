@@ -40,6 +40,8 @@
 
 #include "shaders/canvas_shadow.glsl.gen.h"
 
+#include "shaders/canvas_ao_blur.glsl.gen.h"
+
 class RasterizerCanvasBaseGLES2 : public RasterizerCanvas {
 public:
 	enum {
@@ -55,6 +57,10 @@ public:
 		Color final_modulate;
 
 		float time;
+
+		float ao_depth;
+		bool alpha_is_opacity;
+		Vector2 ao_offset;
 	};
 
 	struct Data {
@@ -74,6 +80,7 @@ public:
 		bool canvas_texscreen_used;
 		CanvasShaderGLES2 canvas_shader;
 		CanvasShadowShaderGLES2 canvas_shadow_shader;
+		CanvasAoBlurShaderGLES2 ao_blur_shader;
 		LensDistortedShaderGLES2 lens_shader;
 
 		bool using_texture_rect;
@@ -92,6 +99,9 @@ public:
 		Light *using_light;
 		bool using_shadow;
 		bool using_transparent_rt;
+
+		bool using_ao;
+		bool at_style_pass;
 
 	} state;
 

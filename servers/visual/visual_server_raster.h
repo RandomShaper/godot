@@ -209,6 +209,9 @@ public:
 	BIND2(material_set_line_width, RID, float)
 	BIND2(material_set_next_pass, RID, RID)
 
+	BIND2(material_set_ao_depth, RID, float)
+	BIND2(material_set_alpha_is_opacity, RID, bool)
+
 	/* MESH API */
 
 	BIND0R(RID, mesh_create)
@@ -425,6 +428,8 @@ public:
 	BIND1R(AABB, particles_get_current_aabb, RID)
 	BIND2(particles_set_emission_transform, RID, const Transform &)
 
+	BIND1(set_render_style, VS::RenderStyle)
+
 #undef BINDBASE
 //from now on, calls forwarded to this singleton
 #define BINDBASE VSG::scene
@@ -592,6 +597,7 @@ public:
 	BIND3(canvas_item_set_custom_rect, RID, bool, const Rect2 &)
 	BIND2(canvas_item_set_modulate, RID, const Color &)
 	BIND2(canvas_item_set_self_modulate, RID, const Color &)
+	BIND2(canvas_item_set_retro_coloring, RID, const Color &)
 
 	BIND2(canvas_item_set_draw_behind_parent, RID, bool)
 

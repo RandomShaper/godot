@@ -1402,6 +1402,10 @@ void RasterizerCanvasGLES2::render_batches(Item::Command *const *p_commands, Ite
 							storage->info.render._2d_draw_call_count++;
 						} break;
 						case Item::Command::TYPE_MULTIMESH: {
+							if (storage->config.current_render_style == VS::RENDER_STYLE_RETRO) {
+								// No particles in retro mode
+								break;
+							}
 							Item::CommandMultiMesh *mmesh = static_cast<Item::CommandMultiMesh *>(command);
 
 							RasterizerStorageGLES2::MultiMesh *multi_mesh = storage->multimesh_owner.getornull(mmesh->multimesh);
@@ -1927,6 +1931,7 @@ void RasterizerCanvasGLES2::join_sorted_items() {
 		}
 
 		bool join;
+		bool skip;
 
 		if (_render_item_state.join_batch_break) {
 			// always start a new batch for this item
@@ -1937,9 +1942,13 @@ void RasterizerCanvasGLES2::join_sorted_items() {
 			// even though we know join is false.
 			// also we need to run try_join_item for every item because it keeps the state up to date,
 			// if we didn't run it the state would be out of date.
-			try_join_item(ci, _render_item_state, _render_item_state.join_batch_break);
+			try_join_item(ci, _render_item_state, _render_item_state.join_batch_break, skip);
 		} else {
-			join = try_join_item(ci, _render_item_state, _render_item_state.join_batch_break);
+			join = try_join_item(ci, _render_item_state, _render_item_state.join_batch_break, skip);
+		}
+
+		if (skip) {
+			continue;
 		}
 
 		// assume the first item will always return no join
@@ -1992,6 +2001,7 @@ void RasterizerCanvasGLES2::join_items(Item *p_item_list, int p_z) {
 		Item *ci = p_item_list;
 
 		bool join;
+		bool skip;
 
 		if (_render_item_state.join_batch_break) {
 			// always start a new batch for this item
@@ -2002,9 +2012,14 @@ void RasterizerCanvasGLES2::join_items(Item *p_item_list, int p_z) {
 			// even though we know join is false.
 			// also we need to run try_join_item for every item because it keeps the state up to date,
 			// if we didn't run it the state would be out of date.
-			try_join_item(ci, _render_item_state, _render_item_state.join_batch_break);
+			try_join_item(ci, _render_item_state, _render_item_state.join_batch_break, skip);
 		} else {
-			join = try_join_item(ci, _render_item_state, _render_item_state.join_batch_break);
+			join = try_join_item(ci, _render_item_state, _render_item_state.join_batch_break, skip);
+		}
+
+		if (skip) {
+			p_item_list = p_item_list->next;
+			continue;
 		}
 
 		// assume the first item will always return no join
@@ -2053,6 +2068,258 @@ void RasterizerCanvasGLES2::canvas_end() {
 #endif
 
 	RasterizerCanvasBaseGLES2::canvas_end();
+}
+
+void RasterizerCanvasGLES2::canvas_begin_style(const Vector2 &p_origin) {
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AT_AO_PASS, storage->config.current_render_style == VS::RENDER_STYLE_AO);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AT_RETRO_PASS, storage->config.current_render_style == VS::RENDER_STYLE_RETRO);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::USE_SKELETON, false);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AO_ENABLED, false);
+	state.canvas_shader.set_custom_shader(0);
+
+	bool backup_clear_request = storage->frame.clear_request;
+	int backup_width = storage->frame.current_rt->width;
+	int backup_height = storage->frame.current_rt->height;
+	storage->frame.clear_request = false;
+
+	RasterizerCanvasBaseGLES2::canvas_begin();
+
+	storage->frame.clear_request = backup_clear_request;
+	storage->frame.current_rt->width = backup_width;
+	storage->frame.current_rt->height = backup_height;
+
+	const auto &style = storage->frame.current_rt->style;
+	glBindFramebuffer(GL_FRAMEBUFFER, style.fbo[0]);
+	glClearColor(0, 0, 0, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glBlendEquation(GL_FUNC_ADD);
+	glViewport(0, 0, style.width, style.height);
+
+	state.uniforms.projection_matrix.translate(
+			-fmod(p_origin.x, style.downscale),
+			-fmod(p_origin.y, style.downscale),
+			0.0f);
+
+	if (storage->config.current_render_style == VS::RENDER_STYLE_AO) {
+		glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ZERO);
+		glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+#if false // || true // Debug AO
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#endif
+	} else if (storage->config.current_render_style == VS::RENDER_STYLE_RETRO) {
+		state.uniforms.ao_offset.x = -floor(p_origin.x / style.downscale);
+		state.uniforms.ao_offset.y = floor(p_origin.y / style.downscale);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
+	}
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, storage->resources.white_tex);
+
+	state.at_style_pass = true;
+}
+
+void RasterizerCanvasGLES2::canvas_end_style(const Vector2 &p_origin) {
+
+	state.at_style_pass = false;
+
+	if (storage->config.current_render_style == VS::RENDER_STYLE_AO) {
+		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+		_blur_ao();
+	}
+
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AT_AO_PASS, false);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AT_RETRO_PASS, false);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::USE_SKELETON, false);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AO_ENABLED, false);
+
+	RasterizerCanvasBaseGLES2::canvas_end();
+
+	RasterizerStorageGLES2::RenderTarget *rt = storage->frame.current_rt;
+	glBindFramebuffer(GL_FRAMEBUFFER, rt->fbo);
+	glViewport(0, 0, rt->width, rt->height);
+
+	if (storage->config.current_render_style == VS::RENDER_STYLE_AO) {
+		const auto &style = storage->frame.current_rt->style;
+		state.uniforms.ao_offset.x = -fmod(p_origin.x, style.downscale) / rt->width;
+		state.uniforms.ao_offset.y = fmod(p_origin.y, style.downscale) / rt->height;
+
+#if false // || true // Debug AO
+		glDisable(GL_BLEND);
+		_blit_style();
+#endif
+	} else if (storage->config.current_render_style == VS::RENDER_STYLE_RETRO) {
+		// Clear now to blit over; the normal canvas render flow won't happen after this function
+		if (storage->frame.clear_request) {
+			glClearColor(storage->frame.clear_request_color.r,
+					storage->frame.clear_request_color.g,
+					storage->frame.clear_request_color.b,
+					1.0);
+			glClear(GL_COLOR_BUFFER_BIT);
+			storage->frame.clear_request = false;
+
+			_blit_style();
+		}
+	}
+}
+
+#define AO_DEPTH_STEP 0.1 // Shared between rasterizer_canvas_gles2.cpp, canvas.glsl and shaders in the game
+
+void RasterizerCanvasGLES2::_blur_ao() {
+
+	glDisable(GL_BLEND);
+
+	glActiveTexture(GL_TEXTURE0);
+
+	const auto &style = storage->frame.current_rt->style;
+	Vector2 psize(1.0 / style.width, 1.0 / style.height);
+
+	glViewport(0, 0, style.width, style.height);
+	glActiveTexture(GL_TEXTURE0);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, style.fbo[1]);
+	glBindTexture(GL_TEXTURE_2D, style.color[0]);
+	state.ao_blur_shader.set_conditional(CanvasAoBlurShaderGLES2::AO_BLUR_H_PASS, true);
+	state.ao_blur_shader.bind();
+	state.ao_blur_shader.set_uniform(CanvasAoBlurShaderGLES2::PIXEL_SIZE, psize);
+	storage->_copy_screen();
+	state.ao_blur_shader.set_conditional(CanvasAoBlurShaderGLES2::AO_BLUR_H_PASS, false);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, style.fbo[2]);
+	glBindTexture(GL_TEXTURE_2D, style.color[1]);
+	state.ao_blur_shader.set_conditional(CanvasAoBlurShaderGLES2::AO_BLUR_V_PASS, true);
+	state.ao_blur_shader.bind();
+	state.ao_blur_shader.set_uniform(CanvasAoBlurShaderGLES2::PIXEL_SIZE, psize);
+	storage->_copy_screen();
+	state.ao_blur_shader.set_conditional(CanvasAoBlurShaderGLES2::AO_BLUR_V_PASS, false);
+}
+
+void RasterizerCanvasGLES2::_blit_style() {
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, storage->frame.current_rt->style.color[0]);
+	storage->shaders.copy.bind();
+	storage->_copy_screen();
+}
+
+#define ELEMENTS_Z 20
+#define SUPER_Z 30
+
+static inline float _compute_ao_depth(int p_z, float p_mtl_ao_depth) {
+	return p_z >= 0 ? ((CLAMP(p_z, ELEMENTS_Z - 1, SUPER_Z) - 10) / 10) * (AO_DEPTH_STEP * 3) +
+							  (p_mtl_ao_depth < 0.11f ? 0.0f : p_mtl_ao_depth * (AO_DEPTH_STEP * 2) + AO_DEPTH_STEP) :
+					  0.0f;
+}
+
+void RasterizerCanvasGLES2::canvas_render_items_ao(Item *p_item_list, int p_z) {
+	while (p_item_list) {
+
+		Item *ci = p_item_list;
+
+		Item *material_owner = ci->material_owner ? ci->material_owner : ci;
+
+		RID material = material_owner->material;
+		RasterizerStorageGLES2::Material *material_ptr = storage->material_owner.getornull(material);
+
+		if (material_ptr && fabs(material_ptr->ao_depth) > 0.001f && p_z >= 0) {
+			float ao_depth = _compute_ao_depth(p_z, fabs(material_ptr->ao_depth));
+
+			if (ao_depth > 0.001f) {
+				bool explicit_ao = material_ptr->ao_depth < -0.001f;
+				if (explicit_ao) {
+					glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+				}
+#if false // || true // Debug AO
+				glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+#endif
+
+				state.uniforms.ao_depth = ao_depth;
+				state.uniforms.alpha_is_opacity = material_ptr->alpha_is_opacity;
+				state.uniforms.final_modulate = ci->final_modulate;
+				state.uniforms.modelview_matrix = ci->final_transform;
+				state.uniforms.extra_matrix = Transform2D();
+				_set_uniforms();
+
+				bool reclip = false;
+				_canvas_item_render_commands(ci, NULL, reclip, material_ptr);
+
+				if (explicit_ao) {
+					glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+				}
+			}
+		}
+
+		p_item_list = p_item_list->next;
+	}
+}
+
+static const Color EGA_PALETTE[16] = {
+	Color::hex(0x000000FF),
+	Color::hex(0x0000AAFF),
+	Color::hex(0x00AA00FF),
+	Color::hex(0x00AAAAFF),
+	Color::hex(0xAA0000FF),
+	Color::hex(0xAA00AAFF),
+	Color::hex(0xAA5500FF),
+	Color::hex(0xAAAAAAFF),
+	Color::hex(0x555555FF),
+	Color::hex(0x5555FFFF),
+	Color::hex(0x55FF55FF),
+	Color::hex(0x55FFFFFF),
+	Color::hex(0xFF5555FF),
+	Color::hex(0xFF55FFFF),
+	Color::hex(0xFFFF55FF),
+	Color::hex(0xFFFFFFFF),
+};
+
+void RasterizerCanvasGLES2::canvas_render_items_retro(Item *p_item_list, int p_z) {
+	while (p_item_list) {
+
+		Item *ci = p_item_list;
+
+		if (ci->retro_coloring.a < 0.003f) {
+			p_item_list = p_item_list->next;
+			continue;
+		}
+
+		Item *material_owner = ci->material_owner ? ci->material_owner : ci;
+
+		RID material = material_owner->material;
+		RasterizerStorageGLES2::Material *material_ptr = storage->material_owner.getornull(material);
+
+		if (material_ptr) {
+			if (material_ptr->ao_depth < -0.001f) {
+				p_item_list = p_item_list->next;
+				continue;
+			}
+			state.uniforms.ao_depth = material_ptr->ao_depth;
+			state.uniforms.alpha_is_opacity = material_ptr->alpha_is_opacity;
+		} else {
+			state.uniforms.ao_depth = 1.0f;
+			state.uniforms.alpha_is_opacity = true;
+		}
+
+		int color_idx = static_cast<int>(Math::round(ci->final_modulate.r));
+		bool is_tilemap = ci->final_modulate.g > 0.001f;
+		if (is_tilemap) {
+			if (material_ptr && material_ptr->ao_depth < 0.49f) {
+				color_idx = 0;
+			} else {
+				color_idx = MAX(0, color_idx);
+			}
+		}
+
+		state.uniforms.final_modulate = EGA_PALETTE[color_idx];
+		state.uniforms.final_modulate.a = ci->final_modulate.a;
+		state.uniforms.modelview_matrix = ci->final_transform;
+		state.uniforms.extra_matrix = Transform2D();
+		_set_uniforms();
+
+		bool reclip = false;
+		_canvas_item_render_commands(ci, NULL, reclip, material_ptr);
+
+		p_item_list = p_item_list->next;
+	}
 }
 
 void RasterizerCanvasGLES2::canvas_begin() {
@@ -2183,6 +2450,7 @@ void RasterizerCanvasGLES2::canvas_render_items_implementation(Item *p_item_list
 	ris.item_group_base_transform = p_base_transform;
 
 	state.canvas_shader.set_conditional(CanvasShaderGLES2::USE_SKELETON, false);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AO_ENABLED, storage->config.current_render_style == VS::RENDER_STYLE_AO);
 
 	state.current_tex = RID();
 	state.current_tex_ptr = NULL;
@@ -2200,7 +2468,7 @@ void RasterizerCanvasGLES2::canvas_render_items_implementation(Item *p_item_list
 		while (p_item_list) {
 
 			Item *ci = p_item_list;
-			_canvas_render_item(ci, ris);
+			_canvas_render_item(p_z, ci, ris);
 			p_item_list = p_item_list->next;
 		}
 	}
@@ -2210,13 +2478,16 @@ void RasterizerCanvasGLES2::canvas_render_items_implementation(Item *p_item_list
 	}
 
 	state.canvas_shader.set_conditional(CanvasShaderGLES2::USE_SKELETON, false);
+	state.canvas_shader.set_conditional(CanvasShaderGLES2::AO_ENABLED, false);
 }
 
 // This function is a dry run of the state changes when drawing the item.
 // It should duplicate the logic in _canvas_render_item,
 // to decide whether items are similar enough to join
 // i.e. no state differences between the 2 items.
-bool RasterizerCanvasGLES2::try_join_item(Item *p_ci, RenderItemState &r_ris, bool &r_batch_break) {
+bool RasterizerCanvasGLES2::try_join_item(Item *p_ci, RenderItemState &r_ris, bool &r_batch_break, bool &r_skip) {
+
+	r_skip = false;
 
 	// if we set max join items to zero we can effectively prevent any joining, so
 	// none of the other logic needs to run. Good for testing regression bugs, and
@@ -2281,6 +2552,11 @@ bool RasterizerCanvasGLES2::try_join_item(Item *p_ci, RenderItemState &r_ris, bo
 
 	RID material = material_owner->material;
 	RasterizerStorageGLES2::Material *material_ptr = storage->material_owner.getornull(material);
+
+	if (material_ptr && material_ptr->ao_depth < -0.001f) {
+		r_skip = true;
+		return false;
+	}
 
 	if (material != r_ris.canvas_last_material || r_ris.rebind_shader) {
 
@@ -2518,7 +2794,7 @@ bool RasterizerCanvasGLES2::_detect_batch_break(Item *p_ci) {
 
 // Legacy non-batched implementation for regression testing.
 // Should be removed after testing phase to avoid duplicate codepaths.
-void RasterizerCanvasGLES2::_canvas_render_item(Item *p_ci, RenderItemState &r_ris) {
+void RasterizerCanvasGLES2::_canvas_render_item(int p_z, Item *p_ci, RenderItemState &r_ris) {
 	storage->info.render._2d_item_count++;
 
 	if (r_ris.current_clip != p_ci->final_clip_owner) {
@@ -2582,9 +2858,15 @@ void RasterizerCanvasGLES2::_canvas_render_item(Item *p_ci, RenderItemState &r_r
 	RID material = material_owner->material;
 	RasterizerStorageGLES2::Material *material_ptr = storage->material_owner.getornull(material);
 
+	if (material_ptr && material_ptr->ao_depth < -0.001f) {
+		return;
+	}
+
 	if (material != r_ris.canvas_last_material || r_ris.rebind_shader) {
 
 		RasterizerStorageGLES2::Shader *shader_ptr = NULL;
+
+		state.using_ao = false;
 
 		if (material_ptr) {
 			shader_ptr = material_ptr->shader;
@@ -2592,6 +2874,12 @@ void RasterizerCanvasGLES2::_canvas_render_item(Item *p_ci, RenderItemState &r_r
 			if (shader_ptr && shader_ptr->mode != VS::SHADER_CANVAS_ITEM) {
 				shader_ptr = NULL; // not a canvas item shader, don't use.
 			}
+
+			state.uniforms.ao_depth = _compute_ao_depth(p_z, material_ptr->ao_depth);
+			state.uniforms.alpha_is_opacity = material_ptr->alpha_is_opacity;
+		} else {
+			state.uniforms.ao_depth = _compute_ao_depth(p_z, 0.0f);
+			state.uniforms.alpha_is_opacity = true;
 		}
 
 		if (shader_ptr) {
@@ -2608,6 +2896,12 @@ void RasterizerCanvasGLES2::_canvas_render_item(Item *p_ci, RenderItemState &r_r
 					glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 4);
 					glBindTexture(GL_TEXTURE_2D, storage->frame.current_rt->copy_screen_effect.color);
 				}
+			}
+
+			if (storage->config.current_render_style == VS::RENDER_STYLE_AO && shader_ptr->canvas_item.uses_texao) {
+				glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 5);
+				glBindTexture(GL_TEXTURE_2D, storage->frame.current_rt->style.color[2]);
+				state.using_ao = true;
 			}
 
 			if (shader_ptr != r_ris.shader_cache) {
@@ -2976,9 +3270,15 @@ void RasterizerCanvasGLES2::render_joined_item(const BItemJoined &p_bij, RenderI
 	RID material = material_owner->material;
 	RasterizerStorageGLES2::Material *material_ptr = storage->material_owner.getornull(material);
 
+	if (material_ptr && material_ptr->ao_depth < -0.001f) {
+		return;
+	}
+
 	if (material != r_ris.canvas_last_material || r_ris.rebind_shader) {
 
 		RasterizerStorageGLES2::Shader *shader_ptr = NULL;
+
+		state.using_ao = false;
 
 		if (material_ptr) {
 			shader_ptr = material_ptr->shader;
@@ -2986,6 +3286,12 @@ void RasterizerCanvasGLES2::render_joined_item(const BItemJoined &p_bij, RenderI
 			if (shader_ptr && shader_ptr->mode != VS::SHADER_CANVAS_ITEM) {
 				shader_ptr = NULL; // not a canvas item shader, don't use.
 			}
+
+			state.uniforms.ao_depth = _compute_ao_depth(p_bij.z_index, material_ptr->ao_depth);
+			state.uniforms.alpha_is_opacity = material_ptr->alpha_is_opacity;
+		} else {
+			state.uniforms.ao_depth = _compute_ao_depth(p_bij.z_index, 0.0f);
+			state.uniforms.alpha_is_opacity = true;
 		}
 
 		if (shader_ptr) {
@@ -3002,6 +3308,12 @@ void RasterizerCanvasGLES2::render_joined_item(const BItemJoined &p_bij, RenderI
 					glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 4);
 					glBindTexture(GL_TEXTURE_2D, storage->frame.current_rt->copy_screen_effect.color);
 				}
+			}
+
+			if (storage->config.current_render_style == VS::RENDER_STYLE_AO && shader_ptr->canvas_item.uses_texao) {
+				glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 5);
+				glBindTexture(GL_TEXTURE_2D, storage->frame.current_rt->style.color[2]);
+				state.using_ao = true;
 			}
 
 			if (shader_ptr != r_ris.shader_cache) {

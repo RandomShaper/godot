@@ -51,10 +51,14 @@ class RasterizerSceneGLES2;
 
 class RasterizerStorageGLES2 : public RasterizerStorage {
 public:
+	static const int AO_VERTICAL_BLOCKS = 120;
+
 	RasterizerCanvasGLES2 *canvas;
 	RasterizerSceneGLES2 *scene;
 
 	static GLuint system_fbo;
+
+	struct RenderTarget;
 
 	struct Config {
 
@@ -101,6 +105,9 @@ public:
 		GLuint depth_type;
 		GLuint depth_buffer_internalformat;
 
+		RenderTarget *main_rt;
+		VS::RenderStyle render_style;
+		VS::RenderStyle current_render_style;
 	} config;
 
 	struct Resources {
@@ -236,8 +243,6 @@ public:
 	/////////////////////////////////////////////////////////////////////////////////////////
 
 	/* TEXTURE API */
-
-	struct RenderTarget;
 
 	struct Texture : RID_Data {
 
@@ -462,6 +467,7 @@ public:
 			bool uses_modulate;
 			bool uses_color;
 			bool uses_vertex;
+			bool uses_texao;
 
 		} canvas_item;
 
@@ -559,6 +565,8 @@ public:
 		Vector<Pair<StringName, RID> > textures;
 		float line_width;
 		int render_priority;
+		float ao_depth;
+		bool alpha_is_opacity;
 
 		RID next_pass;
 
@@ -580,6 +588,8 @@ public:
 			line_width = 1.0;
 			last_pass = 0;
 			render_priority = 0;
+			ao_depth = 0;
+			alpha_is_opacity = true;
 		}
 	};
 
@@ -612,6 +622,9 @@ public:
 	virtual void material_remove_instance_owner(RID p_material, RasterizerScene::InstanceBase *p_instance);
 
 	virtual void material_set_render_priority(RID p_material, int priority);
+
+	virtual void material_set_ao_depth(RID p_material, float p_ao_depth);
+	virtual void material_set_alpha_is_opacity(RID p_material, bool p_alpha_is_opacity);
 
 	void update_dirty_materials();
 
@@ -1225,6 +1238,14 @@ public:
 		bool used_dof_blur_near;
 		bool mip_maps_allocated;
 
+		struct Style {
+			int downscale;
+			GLuint fbo[3];
+			GLuint color[3];
+			int width;
+			int height;
+		} style;
+
 		RenderTarget() :
 				fbo(0),
 				color(0),
@@ -1245,6 +1266,14 @@ public:
 				flags[i] = false;
 			}
 			external.fbo = 0;
+			style.downscale = 0;
+			style.fbo[0] = 0;
+			style.fbo[1] = 0;
+			style.fbo[2] = 0;
+			style.color[0] = 0;
+			style.color[1] = 0;
+			style.color[2] = 0;
+			style.width = style.height = 0;
 		}
 	};
 
@@ -1309,6 +1338,8 @@ public:
 		uint64_t count;
 
 	} frame;
+
+	void set_render_style(VS::RenderStyle p_render_style);
 
 	void initialize();
 	void finalize();

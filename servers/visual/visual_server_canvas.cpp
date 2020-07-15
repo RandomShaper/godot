@@ -33,6 +33,10 @@
 #include "visual_server_raster.h"
 #include "visual_server_viewport.h"
 
+// For AO
+#include "drivers/gles2/rasterizer_canvas_gles2.h"
+#include "drivers/gles2/rasterizer_storage_gles2.h"
+
 static const int z_range = VS::CANVAS_ITEM_Z_MAX - VS::CANVAS_ITEM_Z_MIN + 1;
 
 void VisualServerCanvas::_render_canvas_item_tree(Item *p_canvas_item, const Transform2D &p_transform, const Rect2 &p_clip_rect, const Color &p_modulate, RasterizerCanvas::Light *p_lights) {
@@ -174,7 +178,21 @@ void VisualServerCanvas::_render_canvas_item(Item *p_canvas_item, const Transfor
 	if ((!ci->commands.empty() && p_clip_rect.intersects(global_rect, true)) || ci->vp_render || ci->copy_back_buffer) {
 		//something to draw?
 		ci->final_transform = xform;
-		ci->final_modulate = Color(modulate.r * ci->self_modulate.r, modulate.g * ci->self_modulate.g, modulate.b * ci->self_modulate.b, modulate.a * ci->self_modulate.a);
+		RasterizerStorageGLES2 *rcsgles2 = static_cast<RasterizerStorageGLES2 *>(VSG::storage);
+		if (rcsgles2->config.current_render_style != VS::RENDER_STYLE_RETRO) {
+			ci->final_modulate = Color(modulate.r * ci->self_modulate.r, modulate.g * ci->self_modulate.g, modulate.b * ci->self_modulate.b, modulate.a * ci->self_modulate.a);
+		} else {
+			ci->final_modulate = Color(ci->retro_coloring.r, ci->retro_coloring.g, ci->retro_coloring.b, ci->retro_coloring.a);
+			bool ignore_inherited_alpha = ci->retro_coloring.b > 0.4f;
+			if (!ignore_inherited_alpha) {
+				ci->final_modulate.a *= modulate.a * ci->self_modulate.a;
+			} else {
+				bool ignore_vertex_and_texture_alpha = ci->retro_coloring.b > 0.9f;
+				if (ignore_vertex_and_texture_alpha) {
+					ci->final_modulate.a *= -1.0; // Signal ignore vertex and texture alpha
+				}
+			}
+		}
 		ci->global_rect_cache = global_rect;
 		ci->global_rect_cache.position -= p_clip_rect.position;
 		ci->light_masked = false;
@@ -227,8 +245,6 @@ void VisualServerCanvas::_light_mask_canvas_items(int p_z, RasterizerCanvas::Ite
 
 void VisualServerCanvas::render_canvas(Canvas *p_canvas, const Transform2D &p_transform, RasterizerCanvas::Light *p_lights, RasterizerCanvas::Light *p_masked_lights, const Rect2 &p_clip_rect, int p_canvas_layer_id) {
 
-	VSG::canvas_render->canvas_begin();
-
 	if (p_canvas->children_order_dirty) {
 
 		p_canvas->child_items.sort();
@@ -259,6 +275,38 @@ void VisualServerCanvas::render_canvas(Canvas *p_canvas, const Transform2D &p_tr
 			_render_canvas_item(ci[i].item, p_transform, p_clip_rect, Color(1, 1, 1, 1), 0, z_list, z_last_list, NULL, NULL);
 		}
 
+		RasterizerStorageGLES2 *rcsgles2 = static_cast<RasterizerStorageGLES2 *>(VSG::storage);
+		RasterizerCanvasGLES2 *rcgles2 = static_cast<RasterizerCanvasGLES2 *>(VSG::canvas_render);
+		if (rcsgles2->config.current_render_style != VS::RENDER_STYLE_NORMAL) {
+			rcgles2->canvas_begin_style(p_transform.get_origin());
+		}
+		if (rcsgles2->config.current_render_style == VS::RENDER_STYLE_AO) {
+			for (int i = 0; i < z_range; i++) {
+				if (!z_list[i])
+					continue;
+				rcgles2->canvas_render_items_ao(z_list[i], VS::CANVAS_ITEM_Z_MIN + i);
+			}
+		} else if (rcsgles2->config.current_render_style == VS::RENDER_STYLE_RETRO) {
+			for (int i = 0; i < z_range; i++) {
+				if (!z_list[i])
+					continue;
+				rcgles2->canvas_render_items_retro(z_list[i], VS::CANVAS_ITEM_Z_MIN + i);
+			}
+		}
+		if (rcsgles2->config.current_render_style != VS::RENDER_STYLE_NORMAL) {
+			rcgles2->canvas_end_style(p_transform.get_origin());
+			if (rcsgles2->config.current_render_style == VS::RENDER_STYLE_RETRO) {
+				return;
+			}
+#if false // || true // Debug AO
+			if (rcsgles2->config.current_render_style == VS::RENDER_STYLE_AO) {
+				return;
+			}
+#endif
+		}
+
+		VSG::canvas_render->canvas_begin();
+
 		VSG::canvas_render->canvas_render_items_begin(p_canvas->modulate, p_lights, p_transform);
 		for (int i = 0; i < z_range; i++) {
 			if (!z_list[i])
@@ -272,6 +320,8 @@ void VisualServerCanvas::render_canvas(Canvas *p_canvas, const Transform2D &p_tr
 		}
 		VSG::canvas_render->canvas_render_items_end();
 	} else {
+
+		VSG::canvas_render->canvas_begin();
 
 		for (int i = 0; i < l; i++) {
 
@@ -457,6 +507,14 @@ void VisualServerCanvas::canvas_item_set_self_modulate(RID p_item, const Color &
 	ERR_FAIL_COND(!canvas_item);
 
 	canvas_item->self_modulate = p_color;
+}
+
+void VisualServerCanvas::canvas_item_set_retro_coloring(RID p_item, const Color &p_color) {
+
+	Item *canvas_item = canvas_item_owner.getornull(p_item);
+	ERR_FAIL_COND(!canvas_item);
+
+	canvas_item->retro_coloring = p_color;
 }
 
 void VisualServerCanvas::canvas_item_set_draw_behind_parent(RID p_item, bool p_enable) {

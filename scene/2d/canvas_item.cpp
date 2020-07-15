@@ -216,6 +216,28 @@ CanvasItemMaterial::LightMode CanvasItemMaterial::get_light_mode() const {
 	return light_mode;
 }
 
+void CanvasItemMaterial::set_ao_depth(float p_ao_depth) {
+
+	ao_depth = p_ao_depth;
+	VS::get_singleton()->material_set_ao_depth(_get_material(), p_ao_depth);
+}
+
+float CanvasItemMaterial::get_ao_depth() const {
+
+	return ao_depth;
+}
+
+void CanvasItemMaterial::set_alpha_is_opacity(bool p_alpha_is_opacity) {
+
+	alpha_is_opacity = p_alpha_is_opacity;
+	VS::get_singleton()->material_set_alpha_is_opacity(_get_material(), p_alpha_is_opacity);
+}
+
+bool CanvasItemMaterial::is_alpha_opacity() const {
+
+	return alpha_is_opacity;
+}
+
 void CanvasItemMaterial::set_particles_animation(bool p_particles_anim) {
 	particles_animation = p_particles_anim;
 	_queue_shader_change();
@@ -283,6 +305,12 @@ void CanvasItemMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_light_mode", "light_mode"), &CanvasItemMaterial::set_light_mode);
 	ClassDB::bind_method(D_METHOD("get_light_mode"), &CanvasItemMaterial::get_light_mode);
 
+	ClassDB::bind_method(D_METHOD("set_ao_depth", "ao_depth"), &CanvasItemMaterial::set_ao_depth);
+	ClassDB::bind_method(D_METHOD("get_ao_depth"), &CanvasItemMaterial::get_ao_depth);
+
+	ClassDB::bind_method(D_METHOD("set_alpha_is_opacity", "alpha_is_opacity"), &CanvasItemMaterial::set_alpha_is_opacity);
+	ClassDB::bind_method(D_METHOD("is_alpha_opacity"), &CanvasItemMaterial::is_alpha_opacity);
+
 	ClassDB::bind_method(D_METHOD("set_particles_animation", "particles_anim"), &CanvasItemMaterial::set_particles_animation);
 	ClassDB::bind_method(D_METHOD("get_particles_animation"), &CanvasItemMaterial::get_particles_animation);
 
@@ -297,6 +325,8 @@ void CanvasItemMaterial::_bind_methods() {
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "blend_mode", PROPERTY_HINT_ENUM, "Mix,Add,Sub,Mul,Premult Alpha"), "set_blend_mode", "get_blend_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "light_mode", PROPERTY_HINT_ENUM, "Normal,Unshaded,Light Only"), "set_light_mode", "get_light_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::REAL, "ao_depth"), "set_ao_depth", "get_ao_depth");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "alpha_is_opacity"), "set_alpha_is_opacity", "is_alpha_opacity");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "particles_animation"), "set_particles_animation", "get_particles_animation");
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "particles_anim_h_frames", PROPERTY_HINT_RANGE, "1,128,1"), "set_particles_anim_h_frames", "get_particles_anim_h_frames");
@@ -319,6 +349,8 @@ CanvasItemMaterial::CanvasItemMaterial() :
 
 	blend_mode = BLEND_MODE_MIX;
 	light_mode = LIGHT_MODE_NORMAL;
+	ao_depth = 0.0f;
+	alpha_is_opacity = true;
 	particles_animation = false;
 
 	set_particles_anim_h_frames(1);
@@ -694,6 +726,19 @@ void CanvasItem::set_self_modulate(const Color &p_self_modulate) {
 Color CanvasItem::get_self_modulate() const {
 
 	return self_modulate;
+}
+
+void CanvasItem::set_retro_coloring(const Color &p_retro_coloring) {
+
+	if (retro_coloring == p_retro_coloring)
+		return;
+
+	retro_coloring = p_retro_coloring;
+	VisualServer::get_singleton()->canvas_item_set_retro_coloring(canvas_item, retro_coloring);
+}
+Color CanvasItem::get_retro_coloring() const {
+
+	return retro_coloring;
 }
 
 void CanvasItem::set_light_mask(int p_light_mask) {
@@ -1173,6 +1218,8 @@ void CanvasItem::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_modulate"), &CanvasItem::get_modulate);
 	ClassDB::bind_method(D_METHOD("set_self_modulate", "self_modulate"), &CanvasItem::set_self_modulate);
 	ClassDB::bind_method(D_METHOD("get_self_modulate"), &CanvasItem::get_self_modulate);
+	ClassDB::bind_method(D_METHOD("set_retro_coloring", "retro_coloring"), &CanvasItem::set_retro_coloring);
+	ClassDB::bind_method(D_METHOD("get_retro_coloring"), &CanvasItem::get_retro_coloring);
 
 	ClassDB::bind_method(D_METHOD("set_draw_behind_parent", "enable"), &CanvasItem::set_draw_behind_parent);
 	ClassDB::bind_method(D_METHOD("is_draw_behind_parent_enabled"), &CanvasItem::is_draw_behind_parent_enabled);
@@ -1241,6 +1288,7 @@ void CanvasItem::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "visible"), "set_visible", "is_visible");
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "modulate"), "set_modulate", "get_modulate");
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "self_modulate"), "set_self_modulate", "get_self_modulate");
+	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "retro_coloring"), "set_retro_coloring", "get_retro_coloring");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_behind_parent"), "set_draw_behind_parent", "is_draw_behind_parent_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_on_top", PROPERTY_HINT_NONE, "", 0), "_set_on_top", "_is_on_top"); //compatibility
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "light_mask", PROPERTY_HINT_LAYERS_2D_RENDER), "set_light_mask", "get_light_mask");
@@ -1341,6 +1389,7 @@ CanvasItem::CanvasItem() :
 	pending_update = false;
 	modulate = Color(1, 1, 1, 1);
 	self_modulate = Color(1, 1, 1, 1);
+	retro_coloring = Color(15, 0, 0, 1);
 	toplevel = false;
 	first_draw = false;
 	drawing = false;

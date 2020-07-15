@@ -612,6 +612,9 @@ public:
 
 	virtual void material_set_render_priority(RID p_material, int priority);
 
+	virtual void material_set_ao_depth(RID p_material, float p_ao_depth) {}
+	virtual void material_set_alpha_is_opacity(RID p_material, bool p_alpha_is_opacity) {}
+
 	void _update_material(Material *material);
 
 	void update_dirty_materials();
@@ -1459,6 +1462,8 @@ public:
 		uint64_t count;
 
 	} frame;
+
+	void set_render_style(VS::RenderStyle p_render_style) {}
 
 	void initialize();
 	void finalize();

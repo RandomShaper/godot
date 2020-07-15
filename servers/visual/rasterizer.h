@@ -268,6 +268,9 @@ public:
 	virtual void material_add_instance_owner(RID p_material, RasterizerScene::InstanceBase *p_instance) = 0;
 	virtual void material_remove_instance_owner(RID p_material, RasterizerScene::InstanceBase *p_instance) = 0;
 
+	virtual void material_set_ao_depth(RID p_material, float p_ao_depth) = 0;
+	virtual void material_set_alpha_is_opacity(RID p_material, bool p_alpha_is_opacity) = 0;
+
 	/* MESH API */
 
 	virtual RID mesh_create() = 0;
@@ -595,6 +598,8 @@ public:
 	virtual String get_video_adapter_name() const = 0;
 	virtual String get_video_adapter_vendor() const = 0;
 
+	virtual void set_render_style(VS::RenderStyle p_render_style) = 0;
+
 	static RasterizerStorage *base_singleton;
 	RasterizerStorage();
 	virtual ~RasterizerStorage() {}
@@ -875,6 +880,7 @@ public:
 		CopyBackBuffer *copy_back_buffer;
 
 		Color final_modulate;
+		Color retro_coloring;
 		Transform2D final_transform;
 		Rect2 final_clip_rect;
 		Item *final_clip_owner;
@@ -1098,6 +1104,7 @@ public:
 			final_clip_owner = NULL;
 			clip = false;
 			final_modulate = Color(1, 1, 1, 1);
+			retro_coloring = Color(15, 0, 0, 1);
 			visible = true;
 			rect_dirty = true;
 			custom_rect = false;

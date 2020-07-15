@@ -231,6 +231,28 @@ Variant ShaderMaterial::get_shader_param(const StringName &p_param) const {
 	return VS::get_singleton()->material_get_param(_get_material(), p_param);
 }
 
+void ShaderMaterial::set_ao_depth(float p_ao_depth) {
+
+	ao_depth = p_ao_depth;
+	VS::get_singleton()->material_set_ao_depth(_get_material(), p_ao_depth);
+}
+
+float ShaderMaterial::get_ao_depth() const {
+
+	return ao_depth;
+}
+
+void ShaderMaterial::set_alpha_is_opacity(bool p_alpha_is_opacity) {
+
+	alpha_is_opacity = p_alpha_is_opacity;
+	VS::get_singleton()->material_set_alpha_is_opacity(_get_material(), p_alpha_is_opacity);
+}
+
+bool ShaderMaterial::is_alpha_opacity() const {
+
+	return alpha_is_opacity;
+}
+
 void ShaderMaterial::_shader_changed() {
 	_change_notify(); //update all properties
 }
@@ -241,9 +263,16 @@ void ShaderMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_shader"), &ShaderMaterial::get_shader);
 	ClassDB::bind_method(D_METHOD("set_shader_param", "param", "value"), &ShaderMaterial::set_shader_param);
 	ClassDB::bind_method(D_METHOD("get_shader_param", "param"), &ShaderMaterial::get_shader_param);
+	ClassDB::bind_method(D_METHOD("set_ao_depth", "ao_depth"), &ShaderMaterial::set_ao_depth);
+	ClassDB::bind_method(D_METHOD("get_ao_depth"), &ShaderMaterial::get_ao_depth);
+	ClassDB::bind_method(D_METHOD("set_alpha_is_opacity", "alpha_is_opacity"), &ShaderMaterial::set_alpha_is_opacity);
+	ClassDB::bind_method(D_METHOD("is_alpha_opacity"), &ShaderMaterial::is_alpha_opacity);
 	ClassDB::bind_method(D_METHOD("_shader_changed"), &ShaderMaterial::_shader_changed);
 	ClassDB::bind_method(D_METHOD("property_can_revert", "name"), &ShaderMaterial::property_can_revert);
 	ClassDB::bind_method(D_METHOD("property_get_revert", "name"), &ShaderMaterial::property_get_revert);
+
+	ADD_PROPERTY(PropertyInfo(Variant::REAL, "ao_depth"), "set_ao_depth", "get_ao_depth");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "alpha_is_opacity"), "set_alpha_is_opacity", "is_alpha_opacity");
 
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "shader", PROPERTY_HINT_RESOURCE_TYPE, "Shader"), "set_shader", "get_shader");
 }
@@ -283,6 +312,8 @@ Shader::Mode ShaderMaterial::get_shader_mode() const {
 }
 
 ShaderMaterial::ShaderMaterial() {
+	ao_depth = 0.0f;
+	alpha_is_opacity = true;
 }
 
 ShaderMaterial::~ShaderMaterial() {

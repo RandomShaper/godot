@@ -118,6 +118,8 @@ private:
 
 	BlendMode blend_mode;
 	LightMode light_mode;
+	float ao_depth;
+	bool alpha_is_opacity;
 	bool particles_animation;
 
 	int particles_anim_h_frames;
@@ -134,6 +136,12 @@ public:
 
 	void set_light_mode(LightMode p_light_mode);
 	LightMode get_light_mode() const;
+
+	void set_ao_depth(float p_ao_depth);
+	float get_ao_depth() const;
+
+	void set_alpha_is_opacity(bool p_alpha_is_opacity);
+	bool is_alpha_opacity() const;
 
 	void set_particles_animation(bool p_particles_anim);
 	bool get_particles_animation() const;
@@ -186,6 +194,8 @@ private:
 
 	Color modulate;
 	Color self_modulate;
+
+	Color retro_coloring; // R:color_index, G:is_tilemap, B:disable_alpha_inherit, A:alpha
 
 	List<CanvasItem *> children_items;
 	List<CanvasItem *>::Element *C;
@@ -303,6 +313,9 @@ public:
 
 	void set_self_modulate(const Color &p_self_modulate);
 	Color get_self_modulate() const;
+
+	void set_retro_coloring(const Color &p_retro_coloring);
+	Color get_retro_coloring() const;
 
 	/* DRAWING API */
 

@@ -1895,6 +1895,8 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("viewport_get_render_info", "viewport", "info"), &VisualServer::viewport_get_render_info);
 	ClassDB::bind_method(D_METHOD("viewport_set_debug_draw", "viewport", "draw"), &VisualServer::viewport_set_debug_draw);
 
+	ClassDB::bind_method(D_METHOD("set_render_style", "render_style"), &VisualServer::set_render_style);
+
 	ClassDB::bind_method(D_METHOD("environment_create"), &VisualServer::environment_create);
 	ClassDB::bind_method(D_METHOD("environment_set_background", "env", "bg"), &VisualServer::environment_set_background);
 	ClassDB::bind_method(D_METHOD("environment_set_sky", "env", "sky"), &VisualServer::environment_set_sky);
@@ -1964,6 +1966,7 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("canvas_item_set_custom_rect", "item", "use_custom_rect", "rect"), &VisualServer::canvas_item_set_custom_rect, DEFVAL(Rect2()));
 	ClassDB::bind_method(D_METHOD("canvas_item_set_modulate", "item", "color"), &VisualServer::canvas_item_set_modulate);
 	ClassDB::bind_method(D_METHOD("canvas_item_set_self_modulate", "item", "color"), &VisualServer::canvas_item_set_self_modulate);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_retro_coloring", "item", "color"), &VisualServer::canvas_item_set_retro_coloring);
 	ClassDB::bind_method(D_METHOD("canvas_item_set_draw_behind_parent", "item", "enabled"), &VisualServer::canvas_item_set_draw_behind_parent);
 	ClassDB::bind_method(D_METHOD("canvas_item_add_line", "item", "from", "to", "color", "width", "antialiased"), &VisualServer::canvas_item_add_line, DEFVAL(1.0), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("canvas_item_add_polyline", "item", "points", "colors", "width", "antialiased"), &VisualServer::canvas_item_add_polyline, DEFVAL(1.0), DEFVAL(false));
@@ -2063,6 +2066,10 @@ void VisualServer::_bind_methods() {
 	BIND_CONSTANT(MAX_CURSORS);
 	BIND_CONSTANT(MATERIAL_RENDER_PRIORITY_MIN);
 	BIND_CONSTANT(MATERIAL_RENDER_PRIORITY_MAX);
+
+	BIND_ENUM_CONSTANT(RENDER_STYLE_NORMAL);
+	BIND_ENUM_CONSTANT(RENDER_STYLE_AO);
+	BIND_ENUM_CONSTANT(RENDER_STYLE_RETRO);
 
 	BIND_ENUM_CONSTANT(CUBEMAP_LEFT);
 	BIND_ENUM_CONSTANT(CUBEMAP_RIGHT);

@@ -145,6 +145,7 @@ void RasterizerCanvasBaseGLES2::canvas_end() {
 	state.using_skeleton = false;
 	state.using_ninepatch = false;
 	state.using_transparent_rt = false;
+	state.using_ao = false;
 }
 
 void RasterizerCanvasBaseGLES2::draw_generic_textured_rect(const Rect2 &p_rect, const Rect2 &p_src) {
@@ -326,6 +327,20 @@ void RasterizerCanvasBaseGLES2::_set_uniforms() {
 		screen_pixel_size.y = 1.0 / storage->frame.current_rt->height;
 
 		state.canvas_shader.set_uniform(CanvasShaderGLES2::SCREEN_PIXEL_SIZE, screen_pixel_size);
+	}
+
+	if (state.at_style_pass) {
+		state.canvas_shader.set_uniform(CanvasShaderGLES2::AO_DEPTH, state.uniforms.ao_depth);
+		state.canvas_shader.set_uniform(CanvasShaderGLES2::ALPHA_IS_OPACITY, state.uniforms.alpha_is_opacity);
+		state.canvas_shader.set_uniform(CanvasShaderGLES2::AO_OFFSET, state.uniforms.ao_offset);
+		return;
+	}
+
+	if (state.using_ao) {
+		state.canvas_shader.set_uniform(CanvasShaderGLES2::AO_DEPTH, state.uniforms.ao_depth);
+		state.canvas_shader.set_uniform(CanvasShaderGLES2::ALPHA_IS_OPACITY, state.uniforms.alpha_is_opacity);
+		state.canvas_shader.set_uniform(CanvasShaderGLES2::AO_OFFSET, state.uniforms.ao_offset);
+		state.canvas_shader.set_uniform(CanvasShaderGLES2::AO_PIXEL_SIZE, Vector2(1.0 / storage->frame.current_rt->style.width, 1.0 / storage->frame.current_rt->style.height));
 	}
 
 	if (state.using_skeleton) {
@@ -1005,6 +1020,11 @@ void RasterizerCanvasBaseGLES2::initialize() {
 	state.using_light = NULL;
 	state.using_transparent_rt = false;
 	state.using_skeleton = false;
+
+	state.using_ao = false;
+	state.at_style_pass = false;
+
+	state.ao_blur_shader.init();
 }
 
 void RasterizerCanvasBaseGLES2::finalize() {
