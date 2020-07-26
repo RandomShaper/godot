@@ -546,7 +546,7 @@ void ExportTemplateManager::_notification(int p_what) {
 
 bool ExportTemplateManager::can_install_android_template() {
 
-	const String templates_dir = EditorSettings::get_singleton()->get_templates_dir().plus_file(VERSION_FULL_CONFIG);
+	const String templates_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	return FileAccess::exists(templates_dir.plus_file("android_source.zip"));
 }
 
@@ -584,7 +584,7 @@ Error ExportTemplateManager::install_android_template() {
 
 	// Uncompress source template.
 
-	const String &templates_path = EditorSettings::get_singleton()->get_templates_dir().plus_file(VERSION_FULL_CONFIG);
+	const String &templates_path = OS::get_singleton()->get_executable_path().get_base_dir();
 	const String &source_zip = templates_path.plus_file("android_source.zip");
 	ERR_FAIL_COND_V(!FileAccess::exists(source_zip), ERR_CANT_OPEN);
 

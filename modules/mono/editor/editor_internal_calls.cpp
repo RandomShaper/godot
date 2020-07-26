@@ -249,7 +249,7 @@ MonoString *godot_icall_Internal_UpdateApiAssembliesFromPrebuilt(MonoString *p_c
 }
 
 MonoString *godot_icall_Internal_FullTemplatesDir() {
-	String full_templates_dir = EditorSettings::get_singleton()->get_templates_dir().plus_file(VERSION_FULL_CONFIG);
+	String full_templates_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	return GDMonoMarshal::mono_string_from_godot(full_templates_dir);
 }
 
