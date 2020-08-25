@@ -1236,37 +1236,55 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		whitelist_patterns.push_back("*");
 		whitelist_patterns = _GLOBAL_DEF("editor/pack_mount_whitelist_patterns", whitelist_patterns, true);
 
-		String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
-		DirAccess *da = DirAccess::open(exec_dir);
-		if (da) {
-			da->list_dir_begin();
-			for (;;) {
-				String f = da->get_next();
-				if (f == "") {
-					break;
-				}
-				String extension = f.get_extension().to_lower();
-				if (!da->current_is_dir() && (extension == "pck" || extension == "zip")) {
-					bool matched = false;
-					for (int i = 0; i < whitelist_patterns.size(); ++i) {
-						if (f.matchn(whitelist_patterns[i])) {
-							matched = true;
-							break;
+		Set<String> mounted_filenames;
+
+		auto mount_packs_in_path = [&whitelist_patterns, &mounted_filenames](const String &p_path, const String &p_path_desc) {
+			if (p_path == "") {
+				return;
+			}
+
+			DirAccess *da = DirAccess::open(p_path);
+			if (da) {
+				da->list_dir_begin();
+				for (;;) {
+					String f = da->get_next();
+					if (f == "") {
+						break;
+					}
+					String extension = f.get_extension().to_lower();
+					if (!da->current_is_dir() && (extension == "pck" || extension == "zip")) {
+						bool matched = false;
+						for (int i = 0; i < whitelist_patterns.size(); ++i) {
+							if (f.matchn(whitelist_patterns[i])) {
+								matched = true;
+								break;
+							}
+						}
+
+						String pseudo_path = p_path_desc + f;
+						f = f.to_lower();
+						if (matched) {
+							if (!mounted_filenames.has(f)) {
+								print_line("Mounting " + pseudo_path);
+
+								PackedData::get_singleton()->set_disabled(false);
+								ProjectSettings::get_singleton()->load_pack(p_path.plus_file(f));
+
+								mounted_filenames.insert(f);
+							} else {
+								print_line("Skipping overridden " + pseudo_path);
+							}
+						} else {
+							print_line("Skipping non-whitelisted " + pseudo_path);
 						}
 					}
-					if (matched) {
-						PackedData::get_singleton()->set_disabled(false);
-						print_line("Mounting " + f);
-						ProjectSettings::get_singleton()->load_pack(exec_dir.plus_file(f));
-					} else {
-						print_line("Skipping non-whitelisted " + f);
-					}
 				}
+				memdelete(da);
 			}
-			memdelete(da);
-		} else {
-			ERR_PRINT("Cannot list files in executable path");
-		}
+		};
+
+		mount_packs_in_path(OS::get_singleton()->get_environment("EGO_BUNDLES_PATH"), "<EGO_BUNDLES_PATH>/");
+		mount_packs_in_path(OS::get_singleton()->get_resource_dir().plus_file("bundles"), "res://bundles/");
 	}
 #endif
 
