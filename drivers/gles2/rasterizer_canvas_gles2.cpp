@@ -2095,13 +2095,13 @@ void RasterizerCanvasGLES2::canvas_render_items_begin(const Color &p_modulate, L
 			bdata.settings_use_batching = false;
 	}
 
-	if (!bdata.settings_use_batching) {
-		return;
-	}
-
 	// this only needs to be done when screen size changes, but this should be
 	// infrequent enough
 	_calculate_scissor_threshold_area();
+
+	if (!bdata.settings_use_batching) {
+		return;
+	}
 
 	// set up render item state for all the z_indexes (this is common to all z_indexes)
 	_render_item_state.reset();
@@ -2753,6 +2753,7 @@ void RasterizerCanvasGLES2::_canvas_render_item(Item *p_ci, RenderItemState &r_r
 
 		Light *light = r_ris.item_group_light;
 		bool light_used = false;
+		bool light_scissor = false;
 		VS::CanvasLightMode mode = VS::CANVAS_LIGHT_MODE_ADD;
 		state.uniforms.final_modulate = p_ci->final_modulate; // remove the canvas modulate
 
@@ -2824,6 +2825,15 @@ void RasterizerCanvasGLES2::_canvas_render_item(Item *p_ci, RenderItemState &r_r
 				}
 
 				glActiveTexture(GL_TEXTURE0);
+				bool new_light_scissor = _light_scissor_set(p_ci->global_rect_cache, light->xform_cache, light->global_rect_pts_cache);
+				if (new_light_scissor != light_scissor) {
+					if (new_light_scissor) {
+						glEnable(GL_SCISSOR_TEST);
+					} else {
+						glDisable(GL_SCISSOR_TEST);
+					}
+					light_scissor = new_light_scissor;
+				}
 				_canvas_item_render_commands(p_ci, NULL, reclip, material_ptr); //redraw using light
 
 				state.using_light = NULL;
@@ -2833,6 +2843,10 @@ void RasterizerCanvasGLES2::_canvas_render_item(Item *p_ci, RenderItemState &r_r
 		}
 
 		if (light_used) {
+
+			if (light_scissor) {
+				glDisable(GL_SCISSOR_TEST);
+			}
 
 			state.canvas_shader.set_conditional(CanvasShaderGLES2::USE_LIGHTING, false);
 			state.canvas_shader.set_conditional(CanvasShaderGLES2::USE_SHADOWS, false);
