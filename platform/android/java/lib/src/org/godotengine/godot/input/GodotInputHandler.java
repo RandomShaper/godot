@@ -92,21 +92,11 @@ public class GodotInputHandler implements InputDeviceListener {
 
 			// Check if the device exists
 			if (device_id > -1) {
-				queueEvent(new Runnable() {
-					@Override
-					public void run() {
-						GodotLib.joybutton(device_id, button, false);
-					}
-				});
+				GodotLib.joybutton(device_id, button, false);
 			}
 		} else {
 			final int chr = event.getUnicodeChar(0);
-			queueEvent(new Runnable() {
-				@Override
-				public void run() {
-					GodotLib.key(keyCode, chr, false);
-				}
-			});
+			GodotLib.key(keyCode, chr, false);
 		};
 
 		return true;
@@ -137,21 +127,11 @@ public class GodotInputHandler implements InputDeviceListener {
 
 			// Check if the device exists
 			if (device_id > -1) {
-				queueEvent(new Runnable() {
-					@Override
-					public void run() {
-						GodotLib.joybutton(device_id, button, true);
-					}
-				});
+				GodotLib.joybutton(device_id, button, true);
 			}
 		} else {
 			final int chr = event.getUnicodeChar(0);
-			queueEvent(new Runnable() {
-				@Override
-				public void run() {
-					GodotLib.key(keyCode, chr, true);
-				}
-			});
+			GodotLib.key(keyCode, chr, true);
 		};
 
 		return true;
@@ -170,23 +150,13 @@ public class GodotInputHandler implements InputDeviceListener {
 					InputDevice.MotionRange range = joy.axes.get(i);
 					final float value = (event.getAxisValue(range.getAxis()) - range.getMin()) / range.getRange() * 2.0f - 1.0f;
 					final int idx = i;
-					queueEvent(new Runnable() {
-						@Override
-						public void run() {
-							GodotLib.joyaxis(device_id, idx, value);
-						}
-					});
+					GodotLib.joyaxis(device_id, idx, value);
 				}
 
 				for (int i = 0; i < joy.hats.size(); i += 2) {
 					final int hatX = Math.round(event.getAxisValue(joy.hats.get(i).getAxis()));
 					final int hatY = Math.round(event.getAxisValue(joy.hats.get(i + 1).getAxis()));
-					queueEvent(new Runnable() {
-						@Override
-						public void run() {
-							GodotLib.joyhat(device_id, hatX, hatY);
-						}
-					});
+					GodotLib.joyhat(device_id, hatX, hatY);
 				}
 				return true;
 			}
@@ -194,12 +164,7 @@ public class GodotInputHandler implements InputDeviceListener {
 			final int x = Math.round(event.getX());
 			final int y = Math.round(event.getY());
 			final int type = event.getAction();
-			queueEvent(new Runnable() {
-				@Override
-				public void run() {
-					GodotLib.hover(type, x, y);
-				}
-			});
+			GodotLib.hover(type, x, y);
 			return true;
 		}
 
@@ -253,12 +218,7 @@ public class GodotInputHandler implements InputDeviceListener {
 
 					final int device_id = id;
 					final String name = joy.name;
-					queueEvent(new Runnable() {
-						@Override
-						public void run() {
-							GodotLib.joyconnectionchanged(device_id, true, name);
-						}
-					});
+					GodotLib.joyconnectionchanged(device_id, true, name);
 				}
 			}
 		}
@@ -272,12 +232,7 @@ public class GodotInputHandler implements InputDeviceListener {
 		if (device_id > -1) {
 			joysticksDevices.remove(device_id);
 
-			queueEvent(new Runnable() {
-				@Override
-				public void run() {
-					GodotLib.joyconnectionchanged(device_id, false, "");
-				}
-			});
+			GodotLib.joyconnectionchanged(device_id, false, "");
 		}
 	}
 
