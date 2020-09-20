@@ -76,12 +76,7 @@ public class GodotGestureHandler extends GestureDetector.SimpleOnGestureListener
 		//Log.i("GodotGesture", "onDoubleTap");
 		final int x = Math.round(event.getX());
 		final int y = Math.round(event.getY());
-		queueEvent(new Runnable() {
-			@Override
-			public void run() {
-				GodotLib.doubletap(x, y);
-			}
-		});
+		GodotLib.doubletap(x, y);
 		return true;
 	}
 
@@ -90,12 +85,7 @@ public class GodotGestureHandler extends GestureDetector.SimpleOnGestureListener
 		//Log.i("GodotGesture", "onScroll");
 		final int x = Math.round(distanceX);
 		final int y = Math.round(distanceY);
-		queueEvent(new Runnable() {
-			@Override
-			public void run() {
-				GodotLib.scroll(x, y);
-			}
-		});
+		GodotLib.scroll(x, y);
 		return true;
 	}
 

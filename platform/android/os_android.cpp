@@ -176,6 +176,7 @@ Error OS_Android::initialize(const VideoMode &p_desired, int p_video_driver, int
 	AudioDriverManager::initialize(p_audio_driver);
 
 	input = memnew(InputDefault);
+	input->set_use_input_buffering(true); // Needed because events will come directly from the UI thread
 	input->set_fallback_mapping(godot_java->get_input_fallback_mapping());
 
 	//power_manager = memnew(PowerAndroid);
@@ -339,6 +340,7 @@ void OS_Android::main_loop_focusin() {
 	audio_driver_android.set_pause(false);
 }
 
+// Called on the UI thread
 void OS_Android::process_joy_event(OS_Android::JoypadEvent p_event) {
 
 	switch (p_event.type) {
@@ -359,11 +361,13 @@ void OS_Android::process_joy_event(OS_Android::JoypadEvent p_event) {
 	}
 }
 
+// Called on the UI thread
 void OS_Android::process_event(Ref<InputEvent> p_event) {
 
 	input->parse_input_event(p_event);
 }
 
+// Called on the UI thread
 void OS_Android::process_touch(int p_what, int p_pointer, const Vector<TouchPos> &p_points) {
 
 	switch (p_what) {
@@ -485,6 +489,7 @@ void OS_Android::process_touch(int p_what, int p_pointer, const Vector<TouchPos>
 	}
 }
 
+// Called on the UI thread
 void OS_Android::process_hover(int p_type, Point2 p_pos) {
 	// https://developer.android.com/reference/android/view/MotionEvent.html#ACTION_HOVER_ENTER
 	switch (p_type) {
@@ -502,6 +507,7 @@ void OS_Android::process_hover(int p_type, Point2 p_pos) {
 	}
 }
 
+// Called on the UI thread
 void OS_Android::process_double_tap(Point2 p_pos) {
 	Ref<InputEventMouseButton> ev;
 	ev.instance();
@@ -512,6 +518,7 @@ void OS_Android::process_double_tap(Point2 p_pos) {
 	input->parse_input_event(ev);
 }
 
+// Called on the UI thread
 void OS_Android::process_scroll(Point2 p_pos) {
 	Ref<InputEventPanGesture> ev;
 	ev.instance();

@@ -1008,42 +1008,37 @@ public class Godot extends Fragment implements SensorEventListener, IDownloaderC
 
 			//System.out.printf("gaction: %d\n",event.getAction());
 			final int action = event.getAction() & MotionEvent.ACTION_MASK;
-			mView.queueEvent(new Runnable() {
-				@Override
-				public void run() {
-					switch (action) {
-						case MotionEvent.ACTION_DOWN: {
-							GodotLib.touch(0, 0, evcount, arr);
-							//System.out.printf("action down at: %f,%f\n", event.getX(),event.getY());
-						} break;
-						case MotionEvent.ACTION_MOVE: {
-							GodotLib.touch(1, 0, evcount, arr);
-							/*
-							for(int i=0;i<event.getPointerCount();i++) {
-								System.out.printf("%d - moved to: %f,%f\n",i, event.getX(i),event.getY(i));
-							}
-							*/
-						} break;
-						case MotionEvent.ACTION_POINTER_UP: {
-							GodotLib.touch(4, pointer_idx, evcount, arr);
-							//System.out.printf("%d - s.up at: %f,%f\n",pointer_idx, event.getX(pointer_idx),event.getY(pointer_idx));
-						} break;
-						case MotionEvent.ACTION_POINTER_DOWN: {
-							GodotLib.touch(3, pointer_idx, evcount, arr);
-							//System.out.printf("%d - s.down at: %f,%f\n",pointer_idx, event.getX(pointer_idx),event.getY(pointer_idx));
-						} break;
-						case MotionEvent.ACTION_CANCEL:
-						case MotionEvent.ACTION_UP: {
-							GodotLib.touch(2, 0, evcount, arr);
-							/*
-							for(int i=0;i<event.getPointerCount();i++) {
-								System.out.printf("%d - up! %f,%f\n",i, event.getX(i),event.getY(i));
-							}
-							*/
-						} break;
+			switch (action) {
+				case MotionEvent.ACTION_DOWN: {
+					GodotLib.touch(0, 0, evcount, arr);
+					//System.out.printf("action down at: %f,%f\n", event.getX(),event.getY());
+				} break;
+				case MotionEvent.ACTION_MOVE: {
+					GodotLib.touch(1, 0, evcount, arr);
+					/*
+					for(int i=0;i<event.getPointerCount();i++) {
+						System.out.printf("%d - moved to: %f,%f\n",i, event.getX(i),event.getY(i));
 					}
-				}
-			});
+					*/
+				} break;
+				case MotionEvent.ACTION_POINTER_UP: {
+					GodotLib.touch(4, pointer_idx, evcount, arr);
+					//System.out.printf("%d - s.up at: %f,%f\n",pointer_idx, event.getX(pointer_idx),event.getY(pointer_idx));
+				} break;
+				case MotionEvent.ACTION_POINTER_DOWN: {
+					GodotLib.touch(3, pointer_idx, evcount, arr);
+					//System.out.printf("%d - s.down at: %f,%f\n",pointer_idx, event.getX(pointer_idx),event.getY(pointer_idx));
+				} break;
+				case MotionEvent.ACTION_CANCEL:
+				case MotionEvent.ACTION_UP: {
+					GodotLib.touch(2, 0, evcount, arr);
+					/*
+					for(int i=0;i<event.getPointerCount();i++) {
+						System.out.printf("%d - up! %f,%f\n",i, event.getX(i),event.getY(i));
+					}
+					*/
+				} break;
+			}
 		}
 		return true;
 	}
@@ -1058,19 +1053,14 @@ public class Godot extends Fragment implements SensorEventListener, IDownloaderC
 		for (int i = cc.length; --i >= 0; cnt += cc[i] != 0 ? 1 : 0)
 			;
 		if (cnt == 0) return false;
-		mView.queueEvent(new Runnable() {
-			// This method will be called on the rendering thread:
-			public void run() {
-				for (int i = 0, n = cc.length; i < n; i++) {
-					int keyCode;
-					if ((keyCode = cc[i]) != 0) {
-						// Simulate key down and up...
-						GodotLib.key(0, keyCode, true);
-						GodotLib.key(0, keyCode, false);
-					}
-				}
+		for (int i = 0, n = cc.length; i < n; i++) {
+			int keyCode;
+			if ((keyCode = cc[i]) != 0) {
+				// Simulate key down and up...
+				GodotLib.key(0, keyCode, true);
+				GodotLib.key(0, keyCode, false);
 			}
-		});
+		}
 		return true;
 	}
 
