@@ -254,11 +254,6 @@ Vector3 InputDefault::get_gyroscope() const {
 	return gyroscope;
 }
 
-void InputDefault::parse_input_event(const Ref<InputEvent> &p_event) {
-
-	_parse_input_event_impl(p_event, false);
-}
-
 void InputDefault::_parse_input_event_impl(const Ref<InputEvent> &p_event, bool p_is_emulated) {
 
 	// Notes on mouse-touch emulation:
@@ -267,8 +262,6 @@ void InputDefault::_parse_input_event_impl(const Ref<InputEvent> &p_event, bool 
 	//   emulated back to touch events in an endless loop.
 	// - Emulated touch events are handed right to the main loop (i.e., the SceneTree) because they don't
 	//   require additional handling by this class.
-
-	_THREAD_SAFE_METHOD_
 
 	Ref<InputEventKey> k = p_event;
 	if (k.is_valid() && !k->is_echo() && k->get_scancode() != 0) {
@@ -659,11 +652,13 @@ void InputDefault::set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_sh
 	OS::get_singleton()->set_custom_mouse_cursor(p_cursor, (OS::CursorShape)p_shape, p_hotspot);
 }
 
-void InputDefault::accumulate_input_event(const Ref<InputEvent> &p_event) {
+void InputDefault::parse_input_event(const Ref<InputEvent> &p_event) {
+	_THREAD_SAFE_METHOD_
+
 	ERR_FAIL_COND(p_event.is_null());
 
 	if (!use_accumulated_input) {
-		parse_input_event(p_event);
+		_parse_input_event_impl(p_event, false);
 		return;
 	}
 	if (!accumulated_events.empty() && accumulated_events.back()->get()->accumulate(p_event)) {
@@ -673,9 +668,10 @@ void InputDefault::accumulate_input_event(const Ref<InputEvent> &p_event) {
 	accumulated_events.push_back(p_event);
 }
 void InputDefault::flush_accumulated_events() {
+	_THREAD_SAFE_METHOD_
 
 	while (accumulated_events.front()) {
-		parse_input_event(accumulated_events.front()->get());
+		_parse_input_event_impl(accumulated_events.front()->get(), false);
 		accumulated_events.pop_front();
 	}
 }
