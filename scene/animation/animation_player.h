@@ -71,6 +71,9 @@ public:
 	};
 
 private:
+	static bool retro_delta_enabled;
+	static float retro_delta_time;
+
 	enum {
 
 		NODE_CACHE_UPDATE_MAX = 1024,
@@ -363,6 +366,9 @@ public:
 	AnimatedValuesBackup backup_animated_values();
 	void restore_animated_values(const AnimatedValuesBackup &p_backup);
 #endif
+
+	void set_retro_delta_enabled(bool p_enabled) { retro_delta_enabled = p_enabled; }
+	void set_retro_delta_time(float p_delta) { retro_delta_time = p_delta; }
 
 	AnimationPlayer();
 	~AnimationPlayer();

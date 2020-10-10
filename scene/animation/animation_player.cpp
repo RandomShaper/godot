@@ -56,6 +56,9 @@ void AnimatedValuesBackup::update_skeletons() {
 }
 #endif
 
+bool AnimationPlayer::retro_delta_enabled = false;
+float AnimationPlayer::retro_delta_time = 0.0f;
+
 bool AnimationPlayer::_set(const StringName &p_name, const Variant &p_value) {
 
 	String name = p_name;
@@ -210,8 +213,13 @@ void AnimationPlayer::_notification(int p_what) {
 			if (animation_process_mode == ANIMATION_PROCESS_PHYSICS)
 				break;
 
-			if (processing)
-				_animation_process(get_process_delta_time());
+			if (processing) {
+				if (!retro_delta_enabled) {
+					_animation_process(get_process_delta_time());
+				} else {
+					_animation_process(retro_delta_time);
+				}
+			}
 		} break;
 		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
 
@@ -1680,6 +1688,9 @@ void AnimationPlayer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("seek", "seconds", "update"), &AnimationPlayer::seek, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("advance", "delta"), &AnimationPlayer::advance);
+
+	ClassDB::bind_method(D_METHOD("set_retro_delta_enabled", "enabled"), &AnimationPlayer::set_retro_delta_enabled);
+	ClassDB::bind_method(D_METHOD("set_retro_delta_time", "delta"), &AnimationPlayer::set_retro_delta_time);
 
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "root_node"), "set_root", "get_root");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "current_animation", PROPERTY_HINT_ENUM, "", PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_ANIMATE_AS_TRIGGER), "set_current_animation", "get_current_animation");
