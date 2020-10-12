@@ -1539,7 +1539,6 @@ void RasterizerStorageGLES2::_update_shader(Shader *p_shader) const {
 		return;
 	}
 
-
 	p_shader->shader->set_custom_shader_code(p_shader->custom_code_id, gen_code.vertex, gen_code.vertex_global, gen_code.fragment, gen_code.light, gen_code.fragment_global, gen_code.uniforms, gen_code.texture_uniforms, gen_code.custom_defines);
 #ifdef TOOLS_ENABLED
 	if (!Engine::get_singleton()->is_editor_hint()) {
@@ -1566,7 +1565,6 @@ void RasterizerStorageGLES2::_update_shader(Shader *p_shader) const {
 	}
 
 	p_shader->shader->set_custom_shader(p_shader->custom_code_id);
-	p_shader->shader->bind();
 
 	// cache uniform locations
 

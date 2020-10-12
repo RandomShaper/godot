@@ -356,6 +356,7 @@ void RasterizerGLES2::set_boot_image(const Ref<Image> &p_image, const Color &p_c
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	canvas->canvas_begin();
+	canvas->_set_uniforms();
 
 	RID texture = storage->texture_create();
 	storage->texture_allocate(texture, p_image->get_width(), p_image->get_height(), 0, p_image->get_format(), VS::TEXTURE_TYPE_2D, p_use_filter ? VS::TEXTURE_FLAG_FILTER : 0);
@@ -413,6 +414,7 @@ void RasterizerGLES2::blit_render_target_to_screen(RID p_render_target, const Re
 	canvas->state.canvas_shader.bind();
 
 	canvas->canvas_begin();
+	canvas->_set_uniforms();
 	glDisable(GL_BLEND);
 	glBindFramebuffer(GL_FRAMEBUFFER, RasterizerStorageGLES2::system_fbo);
 	glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 1);

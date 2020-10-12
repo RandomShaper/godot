@@ -52,7 +52,6 @@ void RasterizerCanvasBaseGLES2::light_internal_free(RID p_rid) {
 
 void RasterizerCanvasBaseGLES2::canvas_begin() {
 
-	state.canvas_shader.bind();
 	state.using_transparent_rt = false;
 	int viewport_x, viewport_y, viewport_width, viewport_height;
 
@@ -121,7 +120,6 @@ void RasterizerCanvasBaseGLES2::canvas_begin() {
 	state.uniforms.modelview_matrix = Transform2D();
 	state.uniforms.extra_matrix = Transform2D();
 
-	_set_uniforms();
 	_bind_quad_buffer();
 }
 
