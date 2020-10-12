@@ -35,6 +35,10 @@
 #include "servers/visual_server.h"
 #include "texture.h"
 
+#ifdef TOOLS_ENABLED
+#include "core/engine.h"
+#endif
+
 Shader::Mode Shader::get_mode() const {
 
 	return mode;
@@ -52,7 +56,16 @@ void Shader::set_code(const String &p_code) {
 		mode = MODE_SPATIAL;
 	}
 
-	VisualServer::get_singleton()->shader_set_code(shader, p_code);
+	String new_code = p_code;
+#ifdef TOOLS_ENABLED
+	if (!Engine::get_singleton()->is_editor_hint()) {
+		String code = VisualServer::get_singleton()->shader_get_code(shader);
+		Vector<String> parts = code.split("//-----\n");
+		String a = parts.size() == 2 ? parts[0] : "";
+		new_code = a + "//-----\n" + p_code;
+	}
+#endif
+	VisualServer::get_singleton()->shader_set_code(shader, new_code);
 	params_cache_dirty = true;
 
 	emit_changed();
@@ -63,6 +76,24 @@ String Shader::get_code() const {
 	_update_shader();
 	return VisualServer::get_singleton()->shader_get_code(shader);
 }
+
+#ifdef TOOLS_ENABLED
+void Shader::set_path(const String &p_path, bool p_take_over) {
+	Resource::set_path(p_path, p_take_over);
+
+	if (!Engine::get_singleton()->is_editor_hint()) {
+		String code = VisualServer::get_singleton()->shader_get_code(shader);
+		Vector<String> parts = code.split("//-----\n");
+		String a = parts.size() == 2 ? parts[0] : "";
+		String b = parts[parts.size() - 1];
+		if (a.find("//PATH: " + p_path + "\n") == -1) {
+			a += "//PATH: " + p_path + "\n";
+		}
+		code = a + "//-----\n" + b;
+		VisualServer::get_singleton()->shader_set_code(shader, code);
+	}
+}
+#endif
 
 void Shader::get_param_list(List<PropertyInfo> *p_params) const {
 

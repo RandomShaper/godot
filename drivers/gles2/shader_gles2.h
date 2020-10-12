@@ -105,6 +105,9 @@ private:
 		Vector<StringName> custom_uniforms;
 		Vector<CharString> custom_defines;
 		Set<uint32_t> versions;
+#ifdef TOOLS_ENABLED
+		String paths;
+#endif
 	};
 
 	struct Version {
@@ -226,6 +229,9 @@ public:
 			const Vector<StringName> &p_uniforms,
 			const Vector<StringName> &p_texture_uniforms,
 			const Vector<CharString> &p_custom_defines);
+#ifdef TOOLS_ENABLED
+	void set_custom_shader_paths(uint32_t p_code_id, const String &p_paths);
+#endif
 
 	void set_custom_shader(uint32_t p_code_id);
 	void free_custom_shader(uint32_t p_code_id);

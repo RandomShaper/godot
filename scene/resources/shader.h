@@ -97,6 +97,10 @@ public:
 
 	virtual RID get_rid() const;
 
+#ifdef TOOLS_ENABLED
+	virtual void set_path(const String &p_path, bool p_take_over = false);
+#endif
+
 	Shader();
 	~Shader();
 };

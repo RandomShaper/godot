@@ -36,6 +36,10 @@
 #include "rasterizer_scene_gles2.h"
 #include "servers/visual/shader_language.h"
 
+#ifdef TOOLS_ENABLED
+#include "core/engine.h"
+#endif
+
 GLuint RasterizerStorageGLES2::system_fbo = 0;
 
 /* TEXTURE API */
@@ -1535,7 +1539,15 @@ void RasterizerStorageGLES2::_update_shader(Shader *p_shader) const {
 		return;
 	}
 
+
 	p_shader->shader->set_custom_shader_code(p_shader->custom_code_id, gen_code.vertex, gen_code.vertex_global, gen_code.fragment, gen_code.light, gen_code.fragment_global, gen_code.uniforms, gen_code.texture_uniforms, gen_code.custom_defines);
+#ifdef TOOLS_ENABLED
+	if (!Engine::get_singleton()->is_editor_hint()) {
+		Vector<String> parts = p_shader->code.split("//-----\n");
+		String paths = parts.size() == 2 ? parts[0] : "";
+		p_shader->shader->set_custom_shader_paths(p_shader->custom_code_id, paths);
+	}
+#endif
 
 	p_shader->texture_count = gen_code.texture_uniforms.size();
 	p_shader->texture_hints = gen_code.texture_hints;

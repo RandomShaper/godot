@@ -37,6 +37,11 @@
 #include "rasterizer_gles2.h"
 #include "rasterizer_storage_gles2.h"
 
+#ifdef TOOLS_ENABLED
+#include "core/engine.h"
+#include "core/os/os.h"
+#endif
+
 // #define DEBUG_OPENGL
 
 // #include "shaders/copy.glsl.gen.h"
@@ -470,6 +475,23 @@ ShaderGLES2::Version *ShaderGLES2::get_current_version() {
 		cc->versions.insert(conditional_version.version);
 	}
 
+#ifdef TOOLS_ENABLED
+	if (!Engine::get_singleton()->is_editor_hint()) {
+		print_line("SHADER COMPILED");
+		if (cc) {
+			OS::get_singleton()->print(cc->paths.utf8().get_data());
+		} else {
+			print_line("<No custom code>");
+		}
+		for (int i = 0; i < conditional_count; i++) {
+			if (conditional_version.version & (1 << i)) {
+				OS::get_singleton()->print(conditional_defines[i]);
+			}
+		}
+		print_line("----------");
+	}
+#endif
+
 	return &v;
 }
 
@@ -628,6 +650,15 @@ void ShaderGLES2::set_custom_shader_code(uint32_t p_code_id,
 	cc->texture_uniforms = p_texture_uniforms;
 	cc->version++;
 }
+
+#ifdef TOOLS_ENABLED
+void ShaderGLES2::set_custom_shader_paths(uint32_t p_code_id, const String &p_paths) {
+	CustomCode *cc = custom_code_map.getptr(p_code_id);
+	ERR_FAIL_COND(!cc);
+
+	cc->paths = p_paths;
+}
+#endif
 
 void ShaderGLES2::set_custom_shader(uint32_t p_code_id) {
 	new_conditional_version.code_version = p_code_id;
