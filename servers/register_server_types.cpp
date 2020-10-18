@@ -49,6 +49,7 @@
 #include "audio/effects/audio_effect_phaser.h"
 #include "audio/effects/audio_effect_pitch_shift.h"
 #include "audio/effects/audio_effect_record.h"
+#include "audio/effects/audio_effect_retroizer.h"
 #include "audio/effects/audio_effect_reverb.h"
 #include "audio/effects/audio_effect_spectrum_analyzer.h"
 #include "audio/effects/audio_effect_stereo_enhance.h"
@@ -170,6 +171,7 @@ void register_server_types() {
 		ClassDB::register_class<AudioEffectRecord>();
 		ClassDB::register_class<AudioEffectSpectrumAnalyzer>();
 		ClassDB::register_virtual_class<AudioEffectSpectrumAnalyzerInstance>();
+		ClassDB::register_class<AudioEffectRetroizer>();
 	}
 
 	ClassDB::register_class<CameraFeed>();
