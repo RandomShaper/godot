@@ -1343,6 +1343,9 @@ Rect2 Control::get_parent_anchorable_rect() const {
 		parent_rect = data.parent_canvas_item->get_anchorable_rect();
 	} else {
 		parent_rect = get_viewport()->get_visible_rect();
+		if (!Engine::get_singleton()->is_editor_hint()) {
+			parent_rect.size.x = Math::ceil(parent_rect.size.y * 16.0f / 9.0f);
+		}
 	}
 
 	return parent_rect;

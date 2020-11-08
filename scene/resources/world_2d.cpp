@@ -37,6 +37,8 @@
 #include "servers/physics_2d_server.h"
 #include "servers/visual_server.h"
 
+static const real_t MAX_ASPECT_HORIZ = 20.0f;
+
 struct SpatialIndexer2D {
 
 	struct CellRef {
@@ -178,11 +180,19 @@ struct SpatialIndexer2D {
 		changed = true;
 	}
 
+	void _adjust_rect_to_max_wide_aspect(Rect2 *r_rect) {
+		real_t target_width = (MAX_ASPECT_HORIZ / 9.0) * r_rect->size.y;
+		real_t width_diff = target_width - r_rect->size.x;
+		r_rect->position.x -= width_diff * 0.5;
+		r_rect->size.x += width_diff;
+	}
+
 	void _add_viewport(Viewport *p_viewport, const Rect2 &p_rect) {
 
 		ERR_FAIL_COND(viewports.has(p_viewport));
 		ViewportData vd;
 		vd.rect = p_rect;
+		_adjust_rect_to_max_wide_aspect(&vd.rect);
 		viewports[p_viewport] = vd;
 		changed = true;
 	}
@@ -194,6 +204,7 @@ struct SpatialIndexer2D {
 		if (E->get().rect == p_rect)
 			return;
 		E->get().rect = p_rect;
+		_adjust_rect_to_max_wide_aspect(&E->get().rect);
 		changed = true;
 	}
 
