@@ -93,7 +93,7 @@ public:
 		TEXTURE_FLAG_FILTER = 4, /// Create texture with linear (or available) filter
 		TEXTURE_FLAG_ANISOTROPIC_FILTER = 8,
 		TEXTURE_FLAG_CONVERT_TO_LINEAR = 16,
-		TEXTURE_FLAG_MIRRORED_REPEAT = 32, /// Repeat texture, with alternate sections mirrored
+		TEXTURE_FLAG_MIRRORED_REPEAT = 32, /// Repeat texture, with alternate sections mirrored on Y
 		TEXTURE_FLAG_USED_FOR_STREAMING = 2048,
 		TEXTURE_FLAGS_DEFAULT = TEXTURE_FLAG_REPEAT | TEXTURE_FLAG_MIPMAPS | TEXTURE_FLAG_FILTER
 	};

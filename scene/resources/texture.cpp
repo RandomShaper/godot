@@ -84,7 +84,7 @@ void Texture::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_data"), &Texture::get_data);
 
 	ADD_GROUP("Flags", "");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "flags", PROPERTY_HINT_FLAGS, "Mipmaps,Repeat,Filter,Anisotropic Linear,Convert to Linear,Mirrored Repeat,Video Surface"), "set_flags", "get_flags");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "flags", PROPERTY_HINT_FLAGS, "Mipmaps,Repeat,Filter,Anisotropic Linear,Convert to Linear,Repeat X & Mirror Y,Video Surface"), "set_flags", "get_flags");
 	ADD_GROUP("", "");
 
 	BIND_ENUM_CONSTANT(FLAGS_DEFAULT);
@@ -161,7 +161,7 @@ bool ImageTexture::_get(const StringName &p_name, Variant &r_ret) const {
 
 void ImageTexture::_get_property_list(List<PropertyInfo> *p_list) const {
 
-	p_list->push_back(PropertyInfo(Variant::INT, "flags", PROPERTY_HINT_FLAGS, "Mipmaps,Repeat,Filter,Anisotropic,sRGB,Mirrored Repeat"));
+	p_list->push_back(PropertyInfo(Variant::INT, "flags", PROPERTY_HINT_FLAGS, "Mipmaps,Repeat,Filter,Anisotropic,sRGB,Repeat X & Mirrored Y"));
 	p_list->push_back(PropertyInfo(Variant::OBJECT, "image", PROPERTY_HINT_RESOURCE_TYPE, "Image", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESOURCE_NOT_PERSISTENT));
 	p_list->push_back(PropertyInfo(Variant::VECTOR2, "size", PROPERTY_HINT_NONE, ""));
 }
