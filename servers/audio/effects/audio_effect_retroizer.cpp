@@ -97,8 +97,6 @@ static void smbFft(float *fftBuffer, long fftFrameSize, long sign)
 }
 void AudioEffectRetroizerInstance::process(const AudioFrame *p_src_frames, AudioFrame *p_dst_frames, int p_frame_count) {
 
-	uint64_t time = OS::get_singleton()->get_ticks_usec();
-
 	while (p_frame_count) {
 		int to_process = MIN(p_frame_count, fft_size - process_pos);
 
@@ -224,7 +222,7 @@ void AudioEffectRetroizerInstance::process(const AudioFrame *p_src_frames, Audio
 				for (int i = 0; i < fft_size / 2; i++) {
 					float a = (i * 2) * inv_fft_size;
 					*out_write_ptr *= (1.0f - a) * (*(--prev_out_read_ptr)) * a;
-					out_write_ptr++
+					out_write_ptr++;
 				}
 			}
 

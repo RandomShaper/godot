@@ -118,16 +118,6 @@ struct AudioFrame {
 		l = p_l;
 		r = p_r;
 	}
-	_ALWAYS_INLINE_ AudioFrame(const AudioFrame &p_frame) {
-		l = p_frame.l;
-		r = p_frame.r;
-	}
-
-	_ALWAYS_INLINE_ AudioFrame operator=(const AudioFrame &p_frame) {
-		l = p_frame.l;
-		r = p_frame.r;
-		return *this;
-	}
 
 	_ALWAYS_INLINE_ operator Vector2() const {
 		return Vector2(l, r);
@@ -137,7 +127,7 @@ struct AudioFrame {
 		l = p_v2.x;
 		r = p_v2.y;
 	}
-	_ALWAYS_INLINE_ AudioFrame() {}
+	_ALWAYS_INLINE_ AudioFrame() = default;
 };
 
 #endif

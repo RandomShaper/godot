@@ -479,13 +479,13 @@ ShaderGLES2::Version *ShaderGLES2::get_current_version() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
 		print_line("SHADER COMPILED");
 		if (cc) {
-			OS::get_singleton()->print(cc->paths.utf8().get_data());
+			print_line(cc->paths);
 		} else {
 			print_line("<No custom code>");
 		}
 		for (int i = 0; i < conditional_count; i++) {
 			if (conditional_version.version & (1 << i)) {
-				OS::get_singleton()->print(conditional_defines[i]);
+				print_line(String(conditional_defines[i]));
 			}
 		}
 		print_line("----------");
