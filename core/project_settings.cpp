@@ -1232,6 +1232,8 @@ ProjectSettings::ProjectSettings() {
 	// Would ideally be defined in an Android-specific file, but then it doesn't appear in the docs
 	GLOBAL_DEF("android/modules", "");
 
+	GLOBAL_DEF("rendering/reflection_probes/output_subfolder", "reflections");
+
 	using_datapack = false;
 }
 

@@ -30,6 +30,14 @@
 
 #include "reflection_probe.h"
 
+#ifdef TOOLS_ENABLED
+#include "core/io/config_file.h"
+#include "core/os/dir_access.h"
+#include "editor/editor_node.h"
+#endif
+
+static const int RESOLUTION_TO_PIXELS[] = { 16, 32, 64, 128, 256, 512 };
+
 void ReflectionProbe::set_intensity(float p_intensity) {
 
 	intensity = p_intensity;
@@ -170,14 +178,91 @@ uint32_t ReflectionProbe::get_cull_mask() const {
 	return cull_mask;
 }
 
-void ReflectionProbe::set_update_mode(UpdateMode p_mode) {
-	update_mode = p_mode;
-	VS::get_singleton()->reflection_probe_set_update_mode(probe, VS::ReflectionProbeUpdateMode(p_mode));
+void ReflectionProbe::set_resolution(int p_resolution) {
+
+	if (p_resolution == resolution) {
+		return;
+	}
+	resolution = p_resolution;
 }
 
-ReflectionProbe::UpdateMode ReflectionProbe::get_update_mode() const {
-	return update_mode;
+int ReflectionProbe::get_resolution() const {
+
+	return resolution;
 }
+
+void ReflectionProbe::set_bake_texture(const Ref<Texture> &p_texture) {
+
+	if (p_texture == bake_texture)
+		return;
+
+	bake_texture = p_texture;
+	VS::get_singleton()->reflection_probe_set_bake_texture(probe, bake_texture.is_valid() ? bake_texture->get_rid() : RID());
+	_change_notify();
+}
+
+Ref<Texture> ReflectionProbe::get_bake_texture() const {
+
+	return bake_texture;
+}
+
+#ifdef TOOLS_ENABLED
+ReflectionProbe::BakeError ReflectionProbe::bake_reflections() {
+
+	String save_path;
+	if (get_owner() && get_owner()->get_filename() != "") {
+		save_path = get_owner()->get_filename().get_base_dir();
+	} else {
+		return BAKE_ERROR_NO_SAVE_PATH;
+	}
+
+	DirAccessRef da = DirAccess::create_for_path(save_path);
+	if (!da) {
+		return BAKE_ERROR_CANT_WRITE_FiLES;
+	}
+	String save_subdir = GLOBAL_GET("rendering/reflection_probes/output_subfolder");
+	if (save_subdir != "") {
+		save_path = save_path.plus_file(save_subdir);
+		if (!da->dir_exists(save_path)) {
+			if (da->make_dir_recursive(save_path) != OK) {
+				return BAKE_ERROR_CANT_WRITE_FiLES;
+			}
+		}
+	}
+
+	Ref<Image> image = VS::get_singleton()->reflection_probe_bake(probe, RESOLUTION_TO_PIXELS[resolution]);
+
+	String image_path = save_path.plus_file(get_name()) + ".png";
+	if (image->save_png(image_path) != OK) {
+		return BAKE_ERROR_CANT_WRITE_FiLES;
+	}
+
+	Ref<ConfigFile> config;
+	config.instance();
+	if (FileAccess::exists(image_path + ".import")) {
+		config->load(image_path + ".import");
+	} else {
+		// Set only if settings don't exist, to keep user choice
+		config->set_value("params", "compress/mode", 1); // VRAM
+	}
+	config->set_value("remap", "importer", "texture");
+	config->set_value("remap", "type", "StreamTexture");
+	config->set_value("params", "detect_3d", false);
+	config->set_value("params", "flags/repeat", false);
+	config->set_value("params", "flags/filter", true);
+	config->set_value("params", "flags/mipmaps", true);
+	config->set_value("params", "flags/srgb", 0);
+	if (config->save(image_path + ".import") != OK) {
+		return BAKE_ERROR_CANT_WRITE_FiLES;
+	}
+
+	ResourceLoader::import(image_path);
+	RES texture = ResourceLoader::load(image_path);
+	set_bake_texture(texture);
+
+	return BAKE_ERROR_OK;
+}
+#endif
 
 AABB ReflectionProbe::get_aabb() const {
 
@@ -235,10 +320,12 @@ void ReflectionProbe::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_cull_mask", "layers"), &ReflectionProbe::set_cull_mask);
 	ClassDB::bind_method(D_METHOD("get_cull_mask"), &ReflectionProbe::get_cull_mask);
 
-	ClassDB::bind_method(D_METHOD("set_update_mode", "mode"), &ReflectionProbe::set_update_mode);
-	ClassDB::bind_method(D_METHOD("get_update_mode"), &ReflectionProbe::get_update_mode);
+	ClassDB::bind_method(D_METHOD("set_resolution", "resolution"), &ReflectionProbe::set_resolution);
+	ClassDB::bind_method(D_METHOD("get_resolution"), &ReflectionProbe::get_resolution);
 
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "update_mode", PROPERTY_HINT_ENUM, "Once,Always"), "set_update_mode", "get_update_mode");
+	ClassDB::bind_method(D_METHOD("set_bake_texture", "texture"), &ReflectionProbe::set_bake_texture);
+	ClassDB::bind_method(D_METHOD("get_bake_texture"), &ReflectionProbe::get_bake_texture);
+
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "intensity", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_intensity", "get_intensity");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "max_distance", PROPERTY_HINT_EXP_RANGE, "0,16384,0.1,or_greater"), "set_max_distance", "get_max_distance");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "extents"), "set_extents", "get_extents");
@@ -253,12 +340,14 @@ void ReflectionProbe::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "interior_ambient_energy", PROPERTY_HINT_RANGE, "0,16,0.01"), "set_interior_ambient_energy", "get_interior_ambient_energy");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "interior_ambient_contrib", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_interior_ambient_probe_contribution", "get_interior_ambient_probe_contribution");
 
-	BIND_ENUM_CONSTANT(UPDATE_ONCE);
-	BIND_ENUM_CONSTANT(UPDATE_ALWAYS);
+	ADD_GROUP("Bake", "");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "resolution", PROPERTY_HINT_ENUM, "16,32,64,128,256,512"), "set_resolution", "get_resolution");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "bake_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture"), "set_bake_texture", "get_bake_texture");
 }
 
 ReflectionProbe::ReflectionProbe() {
 
+	resolution = 4; // 256
 	intensity = 1.0;
 	interior_ambient = Color(0, 0, 0);
 	interior_ambient_probe_contribution = 0;
@@ -270,7 +359,6 @@ ReflectionProbe::ReflectionProbe() {
 	interior = false;
 	enable_shadows = false;
 	cull_mask = (1 << 20) - 1;
-	update_mode = UPDATE_ONCE;
 
 	probe = VisualServer::get_singleton()->reflection_probe_create();
 	VS::get_singleton()->instance_set_base(get_instance(), probe);

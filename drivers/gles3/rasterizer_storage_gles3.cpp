@@ -5841,18 +5841,8 @@ RID RasterizerStorageGLES3::reflection_probe_create() {
 	reflection_probe->box_projection = false;
 	reflection_probe->enable_shadows = false;
 	reflection_probe->cull_mask = (1 << 20) - 1;
-	reflection_probe->update_mode = VS::REFLECTION_PROBE_UPDATE_ONCE;
 
 	return reflection_probe_owner.make_rid(reflection_probe);
-}
-
-void RasterizerStorageGLES3::reflection_probe_set_update_mode(RID p_probe, VS::ReflectionProbeUpdateMode p_mode) {
-
-	ReflectionProbe *reflection_probe = reflection_probe_owner.getornull(p_probe);
-	ERR_FAIL_COND(!reflection_probe);
-
-	reflection_probe->update_mode = p_mode;
-	reflection_probe->instance_change_notify(true, false);
 }
 
 void RasterizerStorageGLES3::reflection_probe_set_intensity(RID p_probe, float p_intensity) {
@@ -5945,7 +5935,12 @@ void RasterizerStorageGLES3::reflection_probe_set_cull_mask(RID p_probe, uint32_
 	reflection_probe->instance_change_notify(true, false);
 }
 
-void RasterizerStorageGLES3::reflection_probe_set_resolution(RID p_probe, int p_resolution) {
+void RasterizerStorageGLES3::reflection_probe_set_bake_texture(RID p_probe, RID p_texture) {
+
+	ReflectionProbe *reflection_probe = reflection_probe_owner.getornull(p_probe);
+	ERR_FAIL_COND(!reflection_probe);
+
+	reflection_probe->bake_texture = p_texture;
 }
 
 AABB RasterizerStorageGLES3::reflection_probe_get_aabb(RID p_probe) const {
@@ -5957,13 +5952,6 @@ AABB RasterizerStorageGLES3::reflection_probe_get_aabb(RID p_probe) const {
 	aabb.size = reflection_probe->extents * 2.0;
 
 	return aabb;
-}
-VS::ReflectionProbeUpdateMode RasterizerStorageGLES3::reflection_probe_get_update_mode(RID p_probe) const {
-
-	const ReflectionProbe *reflection_probe = reflection_probe_owner.getornull(p_probe);
-	ERR_FAIL_COND_V(!reflection_probe, VS::REFLECTION_PROBE_UPDATE_ALWAYS);
-
-	return reflection_probe->update_mode;
 }
 
 uint32_t RasterizerStorageGLES3::reflection_probe_get_cull_mask(RID p_probe) const {

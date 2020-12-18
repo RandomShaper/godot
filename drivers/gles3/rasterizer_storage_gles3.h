@@ -1018,7 +1018,6 @@ public:
 
 	struct ReflectionProbe : Instantiable {
 
-		VS::ReflectionProbeUpdateMode update_mode;
 		float intensity;
 		Color interior_ambient;
 		float interior_ambient_energy;
@@ -1030,13 +1029,13 @@ public:
 		bool box_projection;
 		bool enable_shadows;
 		uint32_t cull_mask;
+		RID bake_texture;
 	};
 
 	mutable RID_Owner<ReflectionProbe> reflection_probe_owner;
 
 	virtual RID reflection_probe_create();
 
-	virtual void reflection_probe_set_update_mode(RID p_probe, VS::ReflectionProbeUpdateMode p_mode);
 	virtual void reflection_probe_set_intensity(RID p_probe, float p_intensity);
 	virtual void reflection_probe_set_interior_ambient(RID p_probe, const Color &p_ambient);
 	virtual void reflection_probe_set_interior_ambient_energy(RID p_probe, float p_energy);
@@ -1048,10 +1047,9 @@ public:
 	virtual void reflection_probe_set_enable_box_projection(RID p_probe, bool p_enable);
 	virtual void reflection_probe_set_enable_shadows(RID p_probe, bool p_enable);
 	virtual void reflection_probe_set_cull_mask(RID p_probe, uint32_t p_layers);
-	virtual void reflection_probe_set_resolution(RID p_probe, int p_resolution);
+	virtual void reflection_probe_set_bake_texture(RID p_probe, RID p_texture);
 
 	virtual AABB reflection_probe_get_aabb(RID p_probe) const;
-	virtual VS::ReflectionProbeUpdateMode reflection_probe_get_update_mode(RID p_probe) const;
 	virtual uint32_t reflection_probe_get_cull_mask(RID p_probe) const;
 
 	virtual Vector3 reflection_probe_get_extents(RID p_probe) const;

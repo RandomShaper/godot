@@ -286,32 +286,9 @@ public:
 	virtual int get_directional_light_shadow_size(RID p_light_intance);
 	virtual void set_directional_shadow_count(int p_count);
 
-	/* REFLECTION PROBE ATLAS API */
-
-	struct ReflectionAtlas : public RID_Data {
-
-		int subdiv;
-		int size;
-
-		struct Reflection {
-			RID owner;
-			uint64_t last_frame;
-		};
-
-		GLuint fbo[6];
-		GLuint color;
-
-		Vector<Reflection> reflections;
-	};
-
-	mutable RID_Owner<ReflectionAtlas> reflection_atlas_owner;
-
-	virtual RID reflection_atlas_create();
-	virtual void reflection_atlas_set_size(RID p_ref_atlas, int p_size);
-	virtual void reflection_atlas_set_subdivision(RID p_ref_atlas, int p_subdiv);
-
 	/* REFLECTION CUBEMAPS */
 
+#ifdef TOOLS_ENABLED
 	struct ReflectionCubeMap {
 
 		GLuint fbo_id[6];
@@ -321,6 +298,7 @@ public:
 	};
 
 	Vector<ReflectionCubeMap> reflection_cubemaps;
+#endif
 
 	/* REFLECTION PROBE INSTANCE */
 
@@ -329,11 +307,6 @@ public:
 		RasterizerStorageGLES3::ReflectionProbe *probe_ptr;
 		RID probe;
 		RID self;
-		RID atlas;
-
-		int reflection_atlas_index;
-
-		int render_step;
 
 		uint64_t last_pass;
 		int reflection_index;
@@ -347,7 +320,6 @@ public:
 		float box_ofs[4];
 		float params[4]; // intensity, 0, 0, boxproject
 		float ambient[4]; //color, probe contrib
-		float atlas_clamp[4];
 		float local_matrix[16]; //up to here for spot and omni, rest is for directional
 		//notes: for ambientblend, use distance to edge to blend between already existing global environment
 	};
@@ -356,11 +328,9 @@ public:
 
 	virtual RID reflection_probe_instance_create(RID p_probe);
 	virtual void reflection_probe_instance_set_transform(RID p_instance, const Transform &p_transform);
-	virtual void reflection_probe_release_atlas_index(RID p_instance);
-	virtual bool reflection_probe_instance_needs_redraw(RID p_instance);
-	virtual bool reflection_probe_instance_has_reflection(RID p_instance);
-	virtual bool reflection_probe_instance_begin_render(RID p_instance, RID p_reflection_atlas);
-	virtual bool reflection_probe_instance_postprocess_step(RID p_instance);
+#ifdef TOOLS_ENABLED
+	virtual Ref<Image> reflection_probe_bake(RID p_instance, int p_resolution);
+#endif
 
 	/* ENVIRONMENT API */
 
@@ -852,7 +822,7 @@ public:
 	void _setup_environment(Environment *env, const CameraMatrix &p_cam_projection, const Transform &p_cam_transform, bool p_no_fog = false);
 	void _setup_directional_light(int p_index, const Transform &p_camera_inverse_transform, bool p_use_shadows);
 	void _setup_lights(RID *p_light_cull_result, int p_light_cull_count, const Transform &p_camera_inverse_transform, const CameraMatrix &p_camera_projection, RID p_shadow_atlas);
-	void _setup_reflections(RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, const Transform &p_camera_inverse_transform, const CameraMatrix &p_camera_projection, RID p_reflection_atlas, Environment *p_env);
+	void _setup_reflections(RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, const Transform &p_camera_inverse_transform, const CameraMatrix &p_camera_projection, Environment *p_env);
 
 	void _copy_screen(bool p_invalidate_color = false, bool p_invalidate_depth = false);
 	void _copy_texture_to_front_buffer(GLuint p_texture); //used for debug
@@ -866,7 +836,7 @@ public:
 	void _prepare_depth_texture();
 	void _bind_depth_texture();
 
-	virtual void render_scene(const Transform &p_cam_transform, const CameraMatrix &p_cam_projection, bool p_cam_ortogonal, InstanceBase **p_cull_result, int p_cull_count, RID *p_light_cull_result, int p_light_cull_count, RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, RID p_environment, RID p_shadow_atlas, RID p_reflection_atlas, RID p_reflection_probe, int p_reflection_probe_pass);
+	virtual void render_scene(const Transform &p_cam_transform, const CameraMatrix &p_cam_projection, bool p_cam_ortogonal, InstanceBase **p_cull_result, int p_cull_count, RID *p_light_cull_result, int p_light_cull_count, RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, RID p_environment, RID p_shadow_atlas, RID p_reflection_probe, int p_reflection_probe_pass);
 	virtual void render_shadow(RID p_light, RID p_shadow_atlas, int p_pass, InstanceBase **p_cull_result, int p_cull_count);
 	virtual bool free(RID p_rid);
 

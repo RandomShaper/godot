@@ -327,7 +327,6 @@ public:
 
 	BIND0R(RID, reflection_probe_create)
 
-	BIND2(reflection_probe_set_update_mode, RID, ReflectionProbeUpdateMode)
 	BIND2(reflection_probe_set_intensity, RID, float)
 	BIND2(reflection_probe_set_interior_ambient, RID, const Color &)
 	BIND2(reflection_probe_set_interior_ambient_energy, RID, float)
@@ -339,7 +338,7 @@ public:
 	BIND2(reflection_probe_set_enable_box_projection, RID, bool)
 	BIND2(reflection_probe_set_enable_shadows, RID, bool)
 	BIND2(reflection_probe_set_cull_mask, RID, uint32_t)
-	BIND2(reflection_probe_set_resolution, RID, int)
+	BIND2(reflection_probe_set_bake_texture, RID, RID)
 
 	/* BAKED LIGHT API */
 
@@ -525,6 +524,12 @@ public:
 	BIND7(environment_set_fog_depth, RID, bool, float, float, float, bool, float)
 	BIND5(environment_set_fog_height, RID, bool, float, float, float)
 
+	/* PROBE API */
+
+#ifdef TOOLS_ENABLED
+	BIND2R(Ref<Image>, reflection_probe_bake, RID, int)
+#endif
+
 	/* SCENARIO API */
 
 #undef BINDBASE
@@ -534,7 +539,6 @@ public:
 
 	BIND2(scenario_set_debug, RID, ScenarioDebugMode)
 	BIND2(scenario_set_environment, RID, RID)
-	BIND3(scenario_set_reflection_atlas_size, RID, int, int)
 	BIND2(scenario_set_fallback_environment, RID, RID)
 
 	/* INSTANCING API */

@@ -263,7 +263,6 @@ public:
 
 	FUNCRID(reflection_probe)
 
-	FUNC2(reflection_probe_set_update_mode, RID, ReflectionProbeUpdateMode)
 	FUNC2(reflection_probe_set_intensity, RID, float)
 	FUNC2(reflection_probe_set_interior_ambient, RID, const Color &)
 	FUNC2(reflection_probe_set_interior_ambient_energy, RID, float)
@@ -275,7 +274,10 @@ public:
 	FUNC2(reflection_probe_set_enable_box_projection, RID, bool)
 	FUNC2(reflection_probe_set_enable_shadows, RID, bool)
 	FUNC2(reflection_probe_set_cull_mask, RID, uint32_t)
-	FUNC2(reflection_probe_set_resolution, RID, int)
+	FUNC2(reflection_probe_set_bake_texture, RID, RID)
+#ifdef TOOLS_ENABLED
+	FUNC2R(Ref<Image>, reflection_probe_bake, RID, int)
+#endif
 
 	/* BAKED LIGHT API */
 
@@ -456,7 +458,6 @@ public:
 
 	FUNC2(scenario_set_debug, RID, ScenarioDebugMode)
 	FUNC2(scenario_set_environment, RID, RID)
-	FUNC3(scenario_set_reflection_atlas_size, RID, int, int)
 	FUNC2(scenario_set_fallback_environment, RID, RID)
 
 	/* INSTANCING API */

@@ -1782,7 +1782,6 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("light_directional_set_shadow_depth_range_mode", "light", "range_mode"), &VisualServer::light_directional_set_shadow_depth_range_mode);
 
 	ClassDB::bind_method(D_METHOD("reflection_probe_create"), &VisualServer::reflection_probe_create);
-	ClassDB::bind_method(D_METHOD("reflection_probe_set_update_mode", "probe", "mode"), &VisualServer::reflection_probe_set_update_mode);
 	ClassDB::bind_method(D_METHOD("reflection_probe_set_intensity", "probe", "intensity"), &VisualServer::reflection_probe_set_intensity);
 	ClassDB::bind_method(D_METHOD("reflection_probe_set_interior_ambient", "probe", "color"), &VisualServer::reflection_probe_set_interior_ambient);
 	ClassDB::bind_method(D_METHOD("reflection_probe_set_interior_ambient_energy", "probe", "energy"), &VisualServer::reflection_probe_set_interior_ambient_energy);
@@ -1794,6 +1793,7 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reflection_probe_set_enable_box_projection", "probe", "enable"), &VisualServer::reflection_probe_set_enable_box_projection);
 	ClassDB::bind_method(D_METHOD("reflection_probe_set_enable_shadows", "probe", "enable"), &VisualServer::reflection_probe_set_enable_shadows);
 	ClassDB::bind_method(D_METHOD("reflection_probe_set_cull_mask", "probe", "layers"), &VisualServer::reflection_probe_set_cull_mask);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_bake_texture", "probe", "texture"), &VisualServer::reflection_probe_set_bake_texture);
 
 	ClassDB::bind_method(D_METHOD("gi_probe_create"), &VisualServer::gi_probe_create);
 	ClassDB::bind_method(D_METHOD("gi_probe_set_bounds", "probe", "bounds"), &VisualServer::gi_probe_set_bounds);
@@ -1923,7 +1923,6 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("scenario_create"), &VisualServer::scenario_create);
 	ClassDB::bind_method(D_METHOD("scenario_set_debug", "scenario", "debug_mode"), &VisualServer::scenario_set_debug);
 	ClassDB::bind_method(D_METHOD("scenario_set_environment", "scenario", "environment"), &VisualServer::scenario_set_environment);
-	ClassDB::bind_method(D_METHOD("scenario_set_reflection_atlas_size", "scenario", "size", "subdiv"), &VisualServer::scenario_set_reflection_atlas_size);
 	ClassDB::bind_method(D_METHOD("scenario_set_fallback_environment", "scenario", "environment"), &VisualServer::scenario_set_fallback_environment);
 
 #ifndef _3D_DISABLED
@@ -2279,9 +2278,6 @@ void VisualServer::_bind_methods() {
 	BIND_ENUM_CONSTANT(MULTIMESH_CUSTOM_DATA_NONE);
 	BIND_ENUM_CONSTANT(MULTIMESH_CUSTOM_DATA_8BIT);
 	BIND_ENUM_CONSTANT(MULTIMESH_CUSTOM_DATA_FLOAT);
-
-	BIND_ENUM_CONSTANT(REFLECTION_PROBE_UPDATE_ONCE);
-	BIND_ENUM_CONSTANT(REFLECTION_PROBE_UPDATE_ALWAYS);
 
 	BIND_ENUM_CONSTANT(PARTICLES_DRAW_ORDER_INDEX);
 	BIND_ENUM_CONSTANT(PARTICLES_DRAW_ORDER_LIFETIME);

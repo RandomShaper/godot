@@ -188,7 +188,6 @@ public:
 		RID environment;
 		RID fallback_environment;
 		RID reflection_probe_shadow_atlas;
-		RID reflection_atlas;
 
 		SelfList<Instance>::List instances;
 
@@ -206,7 +205,6 @@ public:
 	virtual void scenario_set_debug(RID p_scenario, VS::ScenarioDebugMode p_debug_mode);
 	virtual void scenario_set_environment(RID p_scenario, RID p_environment);
 	virtual void scenario_set_fallback_environment(RID p_scenario, RID p_environment);
-	virtual void scenario_set_reflection_atlas_size(RID p_scenario, int p_size, int p_subdiv);
 
 	/* INSTANCING API */
 
@@ -334,20 +332,7 @@ public:
 		List<PairInfo> geometries;
 
 		RID instance;
-		bool reflection_dirty;
-		SelfList<InstanceReflectionProbeData> update_list;
-
-		int render_step;
-
-		InstanceReflectionProbeData() :
-				update_list(this) {
-
-			reflection_dirty = true;
-			render_step = -1;
-		}
 	};
-
-	SelfList<InstanceReflectionProbeData>::List reflection_probe_render_list;
 
 	struct InstanceLightData : public InstanceBaseData {
 
@@ -591,7 +576,9 @@ public:
 	Mutex *probe_bake_mutex;
 	List<Instance *> probe_bake_list;
 
-	bool _render_reflection_probe_step(Instance *p_instance, int p_step);
+#ifdef TOOLS_ENABLED
+	void _render_reflection_probe(Instance *p_instance);
+#endif
 	void _gi_probe_fill_local_data(int p_idx, int p_level, int p_x, int p_y, int p_z, const GIProbeDataCell *p_cell, const GIProbeDataHeader *p_header, InstanceGIProbeData::LocalData *p_local_data, Vector<uint32_t> *prev_cell);
 
 	_FORCE_INLINE_ uint32_t _gi_bake_find_cell(const GIProbeDataCell *cells, int x, int y, int z, int p_cell_subdiv);

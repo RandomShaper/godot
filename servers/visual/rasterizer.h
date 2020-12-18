@@ -148,24 +148,18 @@ public:
 	virtual void light_instance_mark_visible(RID p_light_instance) = 0;
 	virtual bool light_instances_can_render_shadow_cube() const { return true; }
 
-	virtual RID reflection_atlas_create() = 0;
-	virtual void reflection_atlas_set_size(RID p_ref_atlas, int p_size) = 0;
-	virtual void reflection_atlas_set_subdivision(RID p_ref_atlas, int p_subdiv) = 0;
-
 	virtual RID reflection_probe_instance_create(RID p_probe) = 0;
 	virtual void reflection_probe_instance_set_transform(RID p_instance, const Transform &p_transform) = 0;
-	virtual void reflection_probe_release_atlas_index(RID p_instance) = 0;
-	virtual bool reflection_probe_instance_needs_redraw(RID p_instance) = 0;
-	virtual bool reflection_probe_instance_has_reflection(RID p_instance) = 0;
-	virtual bool reflection_probe_instance_begin_render(RID p_instance, RID p_reflection_atlas) = 0;
-	virtual bool reflection_probe_instance_postprocess_step(RID p_instance) = 0;
+#ifdef TOOLS_ENABLED
+	virtual Ref<Image> reflection_probe_bake(RID p_instance, int p_resolution) = 0;
+#endif
 
 	virtual RID gi_probe_instance_create() = 0;
 	virtual void gi_probe_instance_set_light_data(RID p_probe, RID p_base, RID p_data) = 0;
 	virtual void gi_probe_instance_set_transform_to_data(RID p_probe, const Transform &p_xform) = 0;
 	virtual void gi_probe_instance_set_bounds(RID p_probe, const Vector3 &p_bounds) = 0;
 
-	virtual void render_scene(const Transform &p_cam_transform, const CameraMatrix &p_cam_projection, bool p_cam_ortogonal, InstanceBase **p_cull_result, int p_cull_count, RID *p_light_cull_result, int p_light_cull_count, RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, RID p_environment, RID p_shadow_atlas, RID p_reflection_atlas, RID p_reflection_probe, int p_reflection_probe_pass) = 0;
+	virtual void render_scene(const Transform &p_cam_transform, const CameraMatrix &p_cam_projection, bool p_cam_ortogonal, InstanceBase **p_cull_result, int p_cull_count, RID *p_light_cull_result, int p_light_cull_count, RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, RID p_environment, RID p_shadow_atlas, RID p_reflection_probe, int p_reflection_probe_pass) = 0;
 	virtual void render_shadow(RID p_light, RID p_shadow_atlas, int p_pass, InstanceBase **p_cull_result, int p_cull_count) = 0;
 
 	virtual void set_scene_pass(uint64_t p_pass) = 0;
@@ -413,8 +407,6 @@ public:
 
 	virtual RID reflection_probe_create() = 0;
 
-	virtual void reflection_probe_set_update_mode(RID p_probe, VS::ReflectionProbeUpdateMode p_mode) = 0;
-	virtual void reflection_probe_set_resolution(RID p_probe, int p_resolution) = 0;
 	virtual void reflection_probe_set_intensity(RID p_probe, float p_intensity) = 0;
 	virtual void reflection_probe_set_interior_ambient(RID p_probe, const Color &p_ambient) = 0;
 	virtual void reflection_probe_set_interior_ambient_energy(RID p_probe, float p_energy) = 0;
@@ -426,9 +418,9 @@ public:
 	virtual void reflection_probe_set_enable_box_projection(RID p_probe, bool p_enable) = 0;
 	virtual void reflection_probe_set_enable_shadows(RID p_probe, bool p_enable) = 0;
 	virtual void reflection_probe_set_cull_mask(RID p_probe, uint32_t p_layers) = 0;
+	virtual void reflection_probe_set_bake_texture(RID p_probe, RID p_texture) = 0;
 
 	virtual AABB reflection_probe_get_aabb(RID p_probe) const = 0;
-	virtual VS::ReflectionProbeUpdateMode reflection_probe_get_update_mode(RID p_probe) const = 0;
 	virtual uint32_t reflection_probe_get_cull_mask(RID p_probe) const = 0;
 	virtual Vector3 reflection_probe_get_extents(RID p_probe) const = 0;
 	virtual Vector3 reflection_probe_get_origin_offset(RID p_probe) const = 0;

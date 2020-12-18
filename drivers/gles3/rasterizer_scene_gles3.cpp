@@ -41,6 +41,8 @@
 #define glClearDepth glClearDepthf
 #endif
 
+#define MAX_REFLECTION_PROBES 2
+
 static const GLenum _cube_side_enum[6] = {
 
 	GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
@@ -447,132 +449,6 @@ int RasterizerSceneGLES3::get_directional_light_shadow_size(RID p_light_intance)
 }
 //////////////////////////////////////////////////////
 
-RID RasterizerSceneGLES3::reflection_atlas_create() {
-
-	ReflectionAtlas *reflection_atlas = memnew(ReflectionAtlas);
-	reflection_atlas->subdiv = 0;
-	reflection_atlas->color = 0;
-	reflection_atlas->size = 0;
-	for (int i = 0; i < 6; i++) {
-		reflection_atlas->fbo[i] = 0;
-	}
-
-	return reflection_atlas_owner.make_rid(reflection_atlas);
-}
-
-void RasterizerSceneGLES3::reflection_atlas_set_size(RID p_ref_atlas, int p_size) {
-
-	ReflectionAtlas *reflection_atlas = reflection_atlas_owner.getornull(p_ref_atlas);
-	ERR_FAIL_COND(!reflection_atlas);
-
-	int size = next_power_of_2(p_size);
-
-	if (size == reflection_atlas->size)
-		return;
-	if (reflection_atlas->size) {
-		for (int i = 0; i < 6; i++) {
-			glDeleteFramebuffers(1, &reflection_atlas->fbo[i]);
-			reflection_atlas->fbo[i] = 0;
-		}
-		glDeleteTextures(1, &reflection_atlas->color);
-		reflection_atlas->color = 0;
-	}
-
-	reflection_atlas->size = size;
-
-	for (int i = 0; i < reflection_atlas->reflections.size(); i++) {
-		//erase probes reference to this
-		if (reflection_atlas->reflections[i].owner.is_valid()) {
-			ReflectionProbeInstance *reflection_probe_instance = reflection_probe_instance_owner.getornull(reflection_atlas->reflections[i].owner);
-			reflection_atlas->reflections.write[i].owner = RID();
-
-			ERR_CONTINUE(!reflection_probe_instance);
-			reflection_probe_instance->reflection_atlas_index = -1;
-			reflection_probe_instance->atlas = RID();
-			reflection_probe_instance->render_step = -1;
-		}
-	}
-
-	if (reflection_atlas->size) {
-
-		bool use_float = true;
-
-		GLenum internal_format = use_float ? GL_RGBA16F : GL_RGB10_A2;
-		GLenum format = GL_RGBA;
-		GLenum type = use_float ? GL_HALF_FLOAT : GL_UNSIGNED_INT_2_10_10_10_REV;
-
-		// Create a texture for storing the color
-		glActiveTexture(GL_TEXTURE0);
-		glGenTextures(1, &reflection_atlas->color);
-		glBindTexture(GL_TEXTURE_2D, reflection_atlas->color);
-
-		int mmsize = reflection_atlas->size;
-		glTexStorage2DCustom(GL_TEXTURE_2D, 6, internal_format, mmsize, mmsize, format, type);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 5);
-
-		for (int i = 0; i < 6; i++) {
-			glGenFramebuffers(1, &reflection_atlas->fbo[i]);
-			glBindFramebuffer(GL_FRAMEBUFFER, reflection_atlas->fbo[i]);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, reflection_atlas->color, i);
-
-			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			ERR_CONTINUE(status != GL_FRAMEBUFFER_COMPLETE);
-
-			glDisable(GL_SCISSOR_TEST);
-			glViewport(0, 0, mmsize, mmsize);
-			glClearColor(0, 0, 0, 0);
-			glClear(GL_COLOR_BUFFER_BIT); //it needs to be cleared, to avoid generating garbage
-
-			mmsize >>= 1;
-		}
-	}
-}
-
-void RasterizerSceneGLES3::reflection_atlas_set_subdivision(RID p_ref_atlas, int p_subdiv) {
-
-	ReflectionAtlas *reflection_atlas = reflection_atlas_owner.getornull(p_ref_atlas);
-	ERR_FAIL_COND(!reflection_atlas);
-
-	int subdiv = next_power_of_2(p_subdiv);
-	if (subdiv & 0xaaaaaaaa) { //sqrt(subdiv) must be integer
-		subdiv <<= 1;
-	}
-
-	subdiv = int(Math::sqrt((float)subdiv));
-
-	if (reflection_atlas->subdiv == subdiv)
-		return;
-
-	if (subdiv) {
-
-		for (int i = 0; i < reflection_atlas->reflections.size(); i++) {
-			//erase probes reference to this
-			if (reflection_atlas->reflections[i].owner.is_valid()) {
-				ReflectionProbeInstance *reflection_probe_instance = reflection_probe_instance_owner.getornull(reflection_atlas->reflections[i].owner);
-				reflection_atlas->reflections.write[i].owner = RID();
-
-				ERR_CONTINUE(!reflection_probe_instance);
-				reflection_probe_instance->reflection_atlas_index = -1;
-				reflection_probe_instance->atlas = RID();
-				reflection_probe_instance->render_step = -1;
-			}
-		}
-	}
-
-	reflection_atlas->subdiv = subdiv;
-
-	reflection_atlas->reflections.resize(subdiv * subdiv);
-}
-
-////////////////////////////////////////////////////
-
 RID RasterizerSceneGLES3::reflection_probe_instance_create(RID p_probe) {
 
 	RasterizerStorageGLES3::ReflectionProbe *probe = storage->reflection_probe_owner.getornull(p_probe);
@@ -583,8 +459,6 @@ RID RasterizerSceneGLES3::reflection_probe_instance_create(RID p_probe) {
 	rpi->probe_ptr = probe;
 	rpi->self = reflection_probe_instance_owner.make_rid(rpi);
 	rpi->probe = p_probe;
-	rpi->reflection_atlas_index = -1;
-	rpi->render_step = -1;
 	rpi->last_pass = 0;
 
 	return rpi->self;
@@ -597,126 +471,29 @@ void RasterizerSceneGLES3::reflection_probe_instance_set_transform(RID p_instanc
 	rpi->transform = p_transform;
 }
 
-void RasterizerSceneGLES3::reflection_probe_release_atlas_index(RID p_instance) {
+#ifdef TOOLS_ENABLED
+Ref<Image> RasterizerSceneGLES3::reflection_probe_bake(RID p_instance, int p_resolution) {
 
-	ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getornull(p_instance);
-	ERR_FAIL_COND(!rpi);
-	if (rpi->reflection_atlas_index == -1)
-		return;
+	RasterizerStorageGLES3::ReflectionProbe *probe = storage->reflection_probe_owner.getornull(p_instance);
+	VisualServerScene::Instance* instance = static_cast<VisualServerScene::Instance*>(probe->instance_list.first()->self());
+	VSG::scene->_render_reflection_probe(instance);
 
-	ReflectionAtlas *reflection_atlas = reflection_atlas_owner.getornull(rpi->atlas);
-	ERR_FAIL_COND(!reflection_atlas);
+	VisualServerScene::InstanceReflectionProbeData *reflection_probe = static_cast<VisualServerScene::InstanceReflectionProbeData *>(instance->base_data);
+	ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getornull(reflection_probe->instance);
+	ERR_FAIL_COND_V(!rpi, Ref<Image>());
 
-	ERR_FAIL_INDEX(rpi->reflection_atlas_index, reflection_atlas->reflections.size());
+	GLuint bake_fbo;
+	glGenFramebuffers(1, &bake_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, bake_fbo);
+	GLuint bake_tex;
+	glGenTextures(1, &bake_tex);
+	glBindTexture(GL_TEXTURE_2D, bake_tex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, p_resolution, p_resolution, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, bake_tex, 0);
 
-	ERR_FAIL_COND(reflection_atlas->reflections[rpi->reflection_atlas_index].owner != rpi->self);
-
-	reflection_atlas->reflections.write[rpi->reflection_atlas_index].owner = RID();
-
-	rpi->reflection_atlas_index = -1;
-	rpi->atlas = RID();
-	rpi->render_step = -1;
-}
-
-bool RasterizerSceneGLES3::reflection_probe_instance_needs_redraw(RID p_instance) {
-
-	ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getornull(p_instance);
-	ERR_FAIL_COND_V(!rpi, false);
-
-	return rpi->reflection_atlas_index == -1 || rpi->probe_ptr->update_mode == VS::REFLECTION_PROBE_UPDATE_ALWAYS;
-}
-
-bool RasterizerSceneGLES3::reflection_probe_instance_has_reflection(RID p_instance) {
-
-	ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getornull(p_instance);
-	ERR_FAIL_COND_V(!rpi, false);
-
-	return rpi->reflection_atlas_index != -1;
-}
-
-bool RasterizerSceneGLES3::reflection_probe_instance_begin_render(RID p_instance, RID p_reflection_atlas) {
-
-	ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getornull(p_instance);
-	ERR_FAIL_COND_V(!rpi, false);
-
-	rpi->render_step = 0;
-
-	if (rpi->reflection_atlas_index != -1) {
-		return true; //got one already
-	}
-
-	ReflectionAtlas *reflection_atlas = reflection_atlas_owner.getornull(p_reflection_atlas);
-	ERR_FAIL_COND_V(!reflection_atlas, false);
-
-	if (reflection_atlas->size == 0 || reflection_atlas->subdiv == 0) {
-		return false;
-	}
-
-	int best_free = -1;
-	int best_used = -1;
-	uint64_t best_used_frame = 0;
-
-	for (int i = 0; i < reflection_atlas->reflections.size(); i++) {
-		if (reflection_atlas->reflections[i].owner == RID()) {
-			best_free = i;
-			break;
-		}
-
-		if (rpi->render_step < 0 && reflection_atlas->reflections[i].last_frame < storage->frame.count &&
-				(best_used == -1 || reflection_atlas->reflections[i].last_frame < best_used_frame)) {
-			best_used = i;
-			best_used_frame = reflection_atlas->reflections[i].last_frame;
-		}
-	}
-
-	if (best_free == -1 && best_used == -1) {
-		return false; // sorry, can not do. Try again next frame.
-	}
-
-	if (best_free == -1) {
-		//find best from what is used
-		best_free = best_used;
-
-		ReflectionProbeInstance *victim_rpi = reflection_probe_instance_owner.getornull(reflection_atlas->reflections[best_free].owner);
-		ERR_FAIL_COND_V(!victim_rpi, false);
-		victim_rpi->atlas = RID();
-		victim_rpi->reflection_atlas_index = -1;
-	}
-
-	reflection_atlas->reflections.write[best_free].owner = p_instance;
-	reflection_atlas->reflections.write[best_free].last_frame = storage->frame.count;
-
-	rpi->reflection_atlas_index = best_free;
-	rpi->atlas = p_reflection_atlas;
-	rpi->render_step = 0;
-
-	return true;
-}
-
-bool RasterizerSceneGLES3::reflection_probe_instance_postprocess_step(RID p_instance) {
-
-	ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getornull(p_instance);
-	ERR_FAIL_COND_V(!rpi, true);
-
-	ReflectionAtlas *reflection_atlas = reflection_atlas_owner.getornull(rpi->atlas);
-	ERR_FAIL_COND_V(!reflection_atlas, false);
-
-	ERR_FAIL_COND_V(rpi->render_step >= 6, true);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, reflection_atlas->fbo[rpi->render_step]);
 	state.cube_to_dp_shader.bind();
 
-	int target_size = reflection_atlas->size / reflection_atlas->subdiv;
-
-	int cubemap_index = reflection_cubemaps.size() - 1;
-
-	for (int i = reflection_cubemaps.size() - 1; i >= 0; i--) {
-		//find appropriate cubemap to render to
-		if (reflection_cubemaps[i].size > target_size * 2)
-			break;
-
-		cubemap_index = i;
-	}
+	int cubemap_index = 0; // We're always baking to the biggest cubemap available
 
 	glDisable(GL_BLEND);
 	glActiveTexture(GL_TEXTURE0);
@@ -726,39 +503,39 @@ bool RasterizerSceneGLES3::reflection_probe_instance_postprocess_step(RID p_inst
 	storage->shaders.cubemap_filter.set_conditional(CubemapFilterShaderGLES3::USE_DUAL_PARABOLOID, true);
 	storage->shaders.cubemap_filter.bind();
 
-	int cell_size = reflection_atlas->size / reflection_atlas->subdiv;
-	for (int i = 0; i < rpi->render_step; i++) {
-		cell_size >>= 1; //mipmaps!
-	}
-	int x = (rpi->reflection_atlas_index % reflection_atlas->subdiv) * cell_size;
-	int y = (rpi->reflection_atlas_index / reflection_atlas->subdiv) * cell_size;
-	int width = cell_size;
-	int height = cell_size;
-
-	storage->shaders.cubemap_filter.set_conditional(CubemapFilterShaderGLES3::USE_DIRECT_WRITE, rpi->render_step == 0);
-	storage->shaders.cubemap_filter.set_conditional(CubemapFilterShaderGLES3::LOW_QUALITY, rpi->probe_ptr->update_mode == VS::REFLECTION_PROBE_UPDATE_ALWAYS);
+	storage->shaders.cubemap_filter.set_conditional(CubemapFilterShaderGLES3::USE_DIRECT_WRITE, true);
+	storage->shaders.cubemap_filter.set_uniform(CubemapFilterShaderGLES3::ROUGHNESS, 0.0);
 	for (int i = 0; i < 2; i++) {
-
 		storage->shaders.cubemap_filter.set_uniform(CubemapFilterShaderGLES3::Z_FLIP, i == 0);
-		storage->shaders.cubemap_filter.set_uniform(CubemapFilterShaderGLES3::ROUGHNESS, rpi->render_step / 5.0);
 
-		uint32_t local_width = width, local_height = height;
-		uint32_t local_x = x, local_y = y;
-
-		local_height /= 2;
-		local_y += i * local_height;
-
-		glViewport(local_x, local_y, local_width, local_height);
-
+		glViewport(0, (p_resolution / 2) * i, p_resolution, p_resolution / 2);
 		_copy_screen();
 	}
 	storage->shaders.cubemap_filter.set_conditional(CubemapFilterShaderGLES3::USE_DIRECT_WRITE, false);
-	storage->shaders.cubemap_filter.set_conditional(CubemapFilterShaderGLES3::LOW_QUALITY, false);
 
-	rpi->render_step++;
+	bool hdr = false; // Fixed by now
 
-	return rpi->render_step == 6;
+	Image::Format image_format = hdr ? Image::FORMAT_RGBAH : Image::FORMAT_RGBA8;
+	PoolVector<uint8_t> data;
+	int data_size = Image::get_image_data_size(p_resolution, p_resolution, image_format);
+	data.resize(data_size);
+	{
+		PoolVector<uint8_t>::Write wb = data.write();
+		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);
+		glReadPixels(0, 0, p_resolution, p_resolution, GL_RGBA, hdr ? GL_HALF_FLOAT : GL_UNSIGNED_BYTE, wb.ptr());
+	}
+
+	Image *img = memnew(Image(p_resolution, p_resolution, false, image_format, data));
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDeleteFramebuffers(1, &bake_fbo);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glDeleteTextures(1, &bake_tex);
+
+	return Ref<Image>(img);
 }
+#endif
 
 /* ENVIRONMENT API */
 
@@ -1839,7 +1616,7 @@ void RasterizerSceneGLES3::_setup_light(RenderList::Element *e, const Transform 
 	int omni_count = 0;
 	int *spot_indices = (int *)alloca(maxobj * sizeof(int));
 	int spot_count = 0;
-	int reflection_indices[16];
+	int reflection_indices[MAX_REFLECTION_PROBES];
 	int reflection_count = 0;
 
 	int lc = e->instance->light_instances.size();
@@ -1888,13 +1665,20 @@ void RasterizerSceneGLES3::_setup_light(RenderList::Element *e, const Transform 
 
 		const RID *reflections = e->instance->reflection_probe_instances.ptr();
 
-		for (int i = 0; i < rc; i++) {
+		for (int i = 0; i < rc; i++) { // Up to two reflection probes per instance
 			ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getptr(reflections[i]);
 			if (rpi->last_pass != render_pass) //not visible
 				continue;
 
-			if (reflection_count < maxobj) {
-				reflection_indices[reflection_count++] = rpi->reflection_index;
+			if (reflection_count < MAX_REFLECTION_PROBES) {
+				RasterizerStorageGLES3::Texture *bake_texture = storage->texture_owner.getornull(rpi->probe_ptr->bake_texture);
+				if (bake_texture) {
+					glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - (3 + reflection_count));
+					glBindTexture(GL_TEXTURE_2D, bake_texture->tex_id);
+					reflection_indices[reflection_count++] = rpi->reflection_index;
+				}
+			} else {
+				break;
 			}
 		}
 	}
@@ -1911,7 +1695,7 @@ void RasterizerSceneGLES3::_setup_light(RenderList::Element *e, const Transform 
 		GIProbeInstance *gipi = gi_probe_instance_owner.getptr(ridp[0]);
 
 		float bias_scale = e->instance->baked_light ? 1 : 0;
-		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 9);
+		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 10);
 		glBindTexture(GL_TEXTURE_3D, gipi->tex_cache);
 		state.scene_shader.set_uniform(SceneShaderGLES3::GI_PROBE_XFORM1, gipi->transform_to_data * p_view_transform);
 		state.scene_shader.set_uniform(SceneShaderGLES3::GI_PROBE_BOUNDS1, gipi->bounds);
@@ -1924,7 +1708,7 @@ void RasterizerSceneGLES3::_setup_light(RenderList::Element *e, const Transform 
 
 			GIProbeInstance *gipi2 = gi_probe_instance_owner.getptr(ridp[1]);
 
-			glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 10);
+			glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 11);
 			glBindTexture(GL_TEXTURE_3D, gipi2->tex_cache);
 			state.scene_shader.set_uniform(SceneShaderGLES3::GI_PROBE_XFORM2, gipi2->transform_to_data * p_view_transform);
 			state.scene_shader.set_uniform(SceneShaderGLES3::GI_PROBE_BOUNDS2, gipi2->bounds);
@@ -1948,7 +1732,7 @@ void RasterizerSceneGLES3::_setup_light(RenderList::Element *e, const Transform 
 		RasterizerStorageGLES3::LightmapCapture *capture = storage->lightmap_capture_data_owner.getornull(e->instance->lightmap_capture->base);
 
 		if (lightmap && capture) {
-			glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 9);
+			glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 10);
 			if (e->instance->lightmap_slice == -1) {
 				glBindTexture(GL_TEXTURE_2D, lightmap->tex_id);
 			} else {
@@ -2015,6 +1799,11 @@ void RasterizerSceneGLES3::_render_list(RenderList::Element **p_elements, int p_
 
 		state.scene_shader.set_conditional(SceneShaderGLES3::USE_RADIANCE_MAP, false);
 		state.scene_shader.set_conditional(SceneShaderGLES3::USE_RADIANCE_MAP_ARRAY, false);
+	}
+
+	for (int i = 0; i < MAX_REFLECTION_PROBES; i++) {
+		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - (3 + i));
+		glBindTexture(GL_TEXTURE_2D, storage->resources.black_tex);
 	}
 
 	state.cull_front = false;
@@ -2666,7 +2455,7 @@ void RasterizerSceneGLES3::_setup_environment(Environment *env, const CameraMatr
 		state.ubo_data.shadow_directional_pixel_size[0] = 1.0 / directional_shadow.size;
 		state.ubo_data.shadow_directional_pixel_size[1] = 1.0 / directional_shadow.size;
 
-		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 4);
+		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 5);
 		glBindTexture(GL_TEXTURE_2D, directional_shadow.depth);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
@@ -3014,7 +2803,7 @@ void RasterizerSceneGLES3::_setup_lights(RID *p_light_cull_result, int p_light_c
 	glBindBufferBase(GL_UNIFORM_BUFFER, 5, state.spot_array_ubo);
 }
 
-void RasterizerSceneGLES3::_setup_reflections(RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, const Transform &p_camera_inverse_transform, const CameraMatrix &p_camera_projection, RID p_reflection_atlas, Environment *p_env) {
+void RasterizerSceneGLES3::_setup_reflections(RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, const Transform &p_camera_inverse_transform, const CameraMatrix &p_camera_projection, Environment *p_env) {
 
 	state.reflection_probe_count = 0;
 
@@ -3022,11 +2811,6 @@ void RasterizerSceneGLES3::_setup_reflections(RID *p_reflection_probe_cull_resul
 
 		ReflectionProbeInstance *rpi = reflection_probe_instance_owner.getornull(p_reflection_probe_cull_result[i]);
 		ERR_CONTINUE(!rpi);
-
-		ReflectionAtlas *reflection_atlas = reflection_atlas_owner.getornull(p_reflection_atlas);
-		ERR_CONTINUE(!reflection_atlas);
-
-		ERR_CONTINUE(rpi->reflection_atlas_index < 0);
 
 		if (state.reflection_probe_count >= state.max_ubo_reflections)
 			break;
@@ -3070,17 +2854,6 @@ void RasterizerSceneGLES3::_setup_reflections(RID *p_reflection_probe_cull_resul
 			reflection_ubo.ambient[2] = ambient_linear.b;
 			reflection_ubo.ambient[3] = 0; //not used in exterior mode, since it just blends with regular ambient light
 		}
-
-		int cell_size = reflection_atlas->size / reflection_atlas->subdiv;
-		int x = (rpi->reflection_atlas_index % reflection_atlas->subdiv) * cell_size;
-		int y = (rpi->reflection_atlas_index / reflection_atlas->subdiv) * cell_size;
-		int width = cell_size;
-		int height = cell_size;
-
-		reflection_ubo.atlas_clamp[0] = float(x) / reflection_atlas->size;
-		reflection_ubo.atlas_clamp[1] = float(y) / reflection_atlas->size;
-		reflection_ubo.atlas_clamp[2] = float(width) / reflection_atlas->size;
-		reflection_ubo.atlas_clamp[3] = float(height) / reflection_atlas->size;
 
 		Transform proj = (p_camera_inverse_transform * rpi->transform).inverse();
 		store_transform(proj, reflection_ubo.local_matrix);
@@ -3287,7 +3060,7 @@ void RasterizerSceneGLES3::_bind_depth_texture() {
 	if (!state.bound_depth_texture) {
 		ERR_FAIL_COND(!state.prepared_depth_texture);
 		//bind depth for read
-		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 8);
+		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 9);
 		glBindTexture(GL_TEXTURE_2D, storage->frame.current_rt->depth);
 		state.bound_depth_texture = true;
 	}
@@ -4120,7 +3893,7 @@ void RasterizerSceneGLES3::_post_process(Environment *env, const CameraMatrix &p
 	state.tonemap_shader.set_conditional(TonemapShaderGLES3::V_FLIP, false);
 }
 
-void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const CameraMatrix &p_cam_projection, bool p_cam_ortogonal, InstanceBase **p_cull_result, int p_cull_count, RID *p_light_cull_result, int p_light_cull_count, RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, RID p_environment, RID p_shadow_atlas, RID p_reflection_atlas, RID p_reflection_probe, int p_reflection_probe_pass) {
+void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const CameraMatrix &p_cam_projection, bool p_cam_ortogonal, InstanceBase **p_cull_result, int p_cull_count, RID *p_light_cull_result, int p_light_cull_count, RID *p_reflection_probe_cull_result, int p_reflection_probe_cull_count, RID p_environment, RID p_shadow_atlas, RID p_reflection_probe, int p_reflection_probe_pass) {
 
 	//first of all, make a new render pass
 	render_pass++;
@@ -4131,24 +3904,18 @@ void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const 
 
 	Environment *env = environment_owner.getornull(p_environment);
 	ShadowAtlas *shadow_atlas = shadow_atlas_owner.getornull(p_shadow_atlas);
-	ReflectionAtlas *reflection_atlas = reflection_atlas_owner.getornull(p_reflection_atlas);
 
 	bool use_shadows = shadow_atlas && shadow_atlas->size;
 
 	state.scene_shader.set_conditional(SceneShaderGLES3::USE_SHADOW, use_shadows);
 
 	if (use_shadows) {
-		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 5);
+		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 6);
 		glBindTexture(GL_TEXTURE_2D, shadow_atlas->depth);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
 		state.ubo_data.shadow_atlas_pixel_size[0] = 1.0 / shadow_atlas->size;
 		state.ubo_data.shadow_atlas_pixel_size[1] = 1.0 / shadow_atlas->size;
-	}
-
-	if (reflection_atlas && reflection_atlas->size) {
-		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 3);
-		glBindTexture(GL_TEXTURE_2D, reflection_atlas->color);
 	}
 
 	if (p_reflection_probe.is_valid()) {
@@ -4245,7 +4012,7 @@ void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const 
 	}
 
 	_setup_lights(p_light_cull_result, p_light_cull_count, p_cam_transform.affine_inverse(), p_cam_projection, p_shadow_atlas);
-	_setup_reflections(p_reflection_probe_cull_result, p_reflection_probe_cull_count, p_cam_transform.affine_inverse(), p_cam_projection, p_reflection_atlas, env);
+	_setup_reflections(p_reflection_probe_cull_result, p_reflection_probe_cull_count, p_cam_transform.affine_inverse(), p_cam_projection, env);
 
 	bool use_mrt = false;
 
@@ -4263,29 +4030,18 @@ void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const 
 	GLuint current_fbo;
 
 	if (probe) {
+#ifdef TOOLS_ENABLED
+		if (Engine::get_singleton()->is_editor_hint()) {
+			int cubemap_index = 0; // Bake with the highest resolution possible
 
-		ReflectionAtlas *ref_atlas = reflection_atlas_owner.getptr(probe->atlas);
-		ERR_FAIL_COND(!ref_atlas);
+			current_fbo = reflection_cubemaps[cubemap_index].fbo_id[p_reflection_probe_pass];
+			use_mrt = false;
+			state.scene_shader.set_conditional(SceneShaderGLES3::USE_MULTIPLE_RENDER_TARGETS, false);
 
-		int target_size = ref_atlas->size / ref_atlas->subdiv;
-
-		int cubemap_index = reflection_cubemaps.size() - 1;
-
-		for (int i = reflection_cubemaps.size() - 1; i >= 0; i--) {
-			//find appropriate cubemap to render to
-			if (reflection_cubemaps[i].size > target_size * 2)
-				break;
-
-			cubemap_index = i;
+			glViewport(0, 0, reflection_cubemaps[cubemap_index].size, reflection_cubemaps[cubemap_index].size);
+			glBindFramebuffer(GL_FRAMEBUFFER, current_fbo);
 		}
-
-		current_fbo = reflection_cubemaps[cubemap_index].fbo_id[p_reflection_probe_pass];
-		use_mrt = false;
-		state.scene_shader.set_conditional(SceneShaderGLES3::USE_MULTIPLE_RENDER_TARGETS, false);
-
-		glViewport(0, 0, reflection_cubemaps[cubemap_index].size, reflection_cubemaps[cubemap_index].size);
-		glBindFramebuffer(GL_FRAMEBUFFER, current_fbo);
-
+#endif
 	} else {
 
 		use_mrt = env && (state.used_sss || env->ssao_enabled || env->ssr_enabled || env->dof_blur_far_enabled || env->dof_blur_near_enabled); //only enable MRT rendering if any of these is enabled
@@ -4588,7 +4344,7 @@ void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const 
 	}
 
 	if (storage->frame.current_rt && state.used_screen_texture && storage->frame.current_rt->buffers.active) {
-		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 7);
+		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 8);
 		glBindTexture(GL_TEXTURE_2D, storage->frame.current_rt->effects.mip_maps[0].color);
 	}
 
@@ -4637,15 +4393,6 @@ void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const 
 		glBindTexture(GL_TEXTURE_2D, exposure_shrink[4].color);
 		//glBindTexture(GL_TEXTURE_2D,storage->frame.current_rt->exposure.color);
 		storage->canvas->draw_generic_textured_rect(Rect2(0, 0, storage->frame.current_rt->width / 16, storage->frame.current_rt->height / 16), Rect2(0, 0, 1, 1));
-	}
-
-	if (reflection_atlas && storage->frame.current_rt) {
-
-		//_copy_texture_to_front_buffer(shadow_atlas->depth);
-		storage->canvas->canvas_begin();
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, reflection_atlas->color);
-		storage->canvas->draw_generic_textured_rect(Rect2(0, 0, storage->frame.current_rt->width / 2, storage->frame.current_rt->height / 2), Rect2(0, 0, 1, 1));
 	}
 
 	if (directional_shadow.fbo) {
@@ -4972,17 +4719,10 @@ bool RasterizerSceneGLES3::free(RID p_rid) {
 		shadow_atlas_set_size(p_rid, 0);
 		shadow_atlas_owner.free(p_rid);
 		memdelete(shadow_atlas);
-	} else if (reflection_atlas_owner.owns(p_rid)) {
-
-		ReflectionAtlas *reflection_atlas = reflection_atlas_owner.get(p_rid);
-		reflection_atlas_set_size(p_rid, 0);
-		reflection_atlas_owner.free(p_rid);
-		memdelete(reflection_atlas);
 	} else if (reflection_probe_instance_owner.owns(p_rid)) {
 
 		ReflectionProbeInstance *reflection_instance = reflection_probe_instance_owner.get(p_rid);
 
-		reflection_probe_release_atlas_index(p_rid);
 		reflection_probe_instance_owner.free(p_rid);
 		memdelete(reflection_instance);
 
@@ -5189,6 +4929,7 @@ void RasterizerSceneGLES3::initialize() {
 
 		state.scene_shader.add_custom_define("#define MAX_LIGHT_DATA_STRUCTS " + itos(state.max_ubo_lights) + "\n");
 		state.scene_shader.add_custom_define("#define MAX_FORWARD_LIGHTS " + itos(state.max_forward_lights_per_object) + "\n");
+		state.scene_shader.add_custom_define("#define MAX_REFLECTION_PROBES " + itos(MAX_REFLECTION_PROBES) + "\n");
 
 		state.max_ubo_reflections = MIN(render_list.max_reflections, max_ubo_size / (int)sizeof(ReflectionProbeDataUBO));
 
@@ -5207,7 +4948,8 @@ void RasterizerSceneGLES3::initialize() {
 
 	shadow_filter_mode = SHADOW_FILTER_NEAREST;
 
-	{ //reflection cubemaps
+#ifdef TOOLS_ENABLED
+	if (Engine::get_singleton()->is_editor_hint()) { //reflection cubemaps
 		int max_reflection_cubemap_sampler_size = 512;
 
 		int rcube_size = max_reflection_cubemap_sampler_size;
@@ -5265,6 +5007,7 @@ void RasterizerSceneGLES3::initialize() {
 			rcube_size >>= 1;
 		}
 	}
+#endif
 
 	{
 

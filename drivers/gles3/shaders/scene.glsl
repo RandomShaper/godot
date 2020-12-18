@@ -584,14 +584,15 @@ VERTEX_SHADER_CODE
 
 1-skeleton
 2-radiance
-3-reflection_atlas
-4-directional_shadow
-5-shadow_atlas
-6-decal_atlas
-7-screen
-8-depth
-9-probe1
-10-probe2
+3-reflection_probe1
+4-reflection_probe2
+5-directional_shadow
+6-shadow_atlas
+7-decal_atlas
+8-screen
+9-depth
+10-gi probe1
+11-gi probe2
 
 */
 
@@ -770,7 +771,7 @@ layout(std140) uniform DirectionalLightData {
 	mediump vec4 shadow_split_offsets;
 };
 
-uniform highp sampler2DShadow directional_shadow; // texunit:-4
+uniform highp sampler2DShadow directional_shadow; // texunit:-5
 
 #endif
 
@@ -801,7 +802,7 @@ layout(std140) uniform SpotLightData { // ubo:5
 	LightData spot_lights[MAX_LIGHT_DATA_STRUCTS];
 };
 
-uniform highp sampler2DShadow shadow_atlas; // texunit:-5
+uniform highp sampler2DShadow shadow_atlas; // texunit:-6
 
 struct ReflectionData {
 
@@ -809,7 +810,6 @@ struct ReflectionData {
 	mediump vec4 box_offset;
 	mediump vec4 params; // intensity, 0, interior , boxproject
 	mediump vec4 ambient; // ambient color, energy
-	mediump vec4 atlas_clamp;
 	highp mat4 local_matrix; // up to here for spot and omni, rest is for directional
 	// notes: for ambientblend, use distance to edge to blend between already existing global environment
 };
@@ -818,7 +818,8 @@ layout(std140) uniform ReflectionProbeData { //ubo:6
 
 	ReflectionData reflections[MAX_REFLECTION_DATA_STRUCTS];
 };
-uniform mediump sampler2D reflection_atlas; // texunit:-3
+uniform mediump sampler2D reflection_1; // texunit:-3
+uniform mediump sampler2D reflection_2; // texunit:-4
 
 #ifdef USE_FORWARD_LIGHTING
 
@@ -828,14 +829,14 @@ uniform int omni_light_count;
 uniform int spot_light_indices[MAX_FORWARD_LIGHTS];
 uniform int spot_light_count;
 
-uniform int reflection_indices[MAX_FORWARD_LIGHTS];
+uniform int reflection_indices[MAX_REFLECTION_PROBES];
 uniform int reflection_count;
 
 #endif
 
 #if defined(SCREEN_TEXTURE_USED)
 
-uniform highp sampler2D screen_texture; // texunit:-7
+uniform highp sampler2D screen_texture; // texunit:-8
 
 #endif
 
@@ -855,7 +856,7 @@ layout(location = 0) out vec4 frag_color;
 #endif
 
 in highp vec4 position_interp;
-uniform highp sampler2D depth_buffer; // texunit:-8
+uniform highp sampler2D depth_buffer; // texunit:-9
 
 #ifdef USE_CONTACT_SHADOWS
 
@@ -1336,7 +1337,10 @@ void light_process_spot(int idx, vec3 vertex, vec3 eye_vec, vec3 normal, vec3 bi
 	light_compute(normal, normalize(light_rel_vec), eye_vec, binormal, tangent, spot_lights[idx].light_color_energy.rgb, light_attenuation, albedo, transmission, spot_lights[idx].light_params.z * p_blob_intensity, roughness, metallic, specular, rim * spot_attenuation, rim_tint, clearcoat, clearcoat_gloss, anisotropy, diffuse_light, specular_light, alpha);
 }
 
-void reflection_process(int idx, vec3 vertex, vec3 normal, vec3 binormal, vec3 tangent, float roughness, float anisotropy, vec3 ambient, vec3 skybox, inout highp vec4 reflection_accum, inout highp vec4 ambient_accum) {
+#ifdef USE_FORWARD_LIGHTING
+void reflection_process(int n, vec3 vertex, vec3 normal, vec3 binormal, vec3 tangent, float roughness, float anisotropy, vec3 ambient, vec3 skybox, inout highp vec4 reflection_accum, inout highp vec4 ambient_accum) {
+
+	int idx = reflection_indices[n];
 
 	vec3 ref_vec = normalize(reflect(vertex, normal));
 	vec3 local_pos = (reflections[idx].local_matrix * vec4(vertex, 1.0)).xyz;
@@ -1370,7 +1374,6 @@ void reflection_process(int idx, vec3 vertex, vec3 normal, vec3 binormal, vec3 t
 			local_ref_vec = posonbox - reflections[idx].box_offset.xyz;
 		}
 
-		vec4 clamp_rect = reflections[idx].atlas_clamp;
 		vec3 norm = normalize(local_ref_vec);
 		norm.xy /= 1.0 + abs(norm.z);
 		norm.xy = norm.xy * vec2(0.5, 0.25) + vec2(0.5, 0.25);
@@ -1378,11 +1381,12 @@ void reflection_process(int idx, vec3 vertex, vec3 normal, vec3 binormal, vec3 t
 			norm.y = 0.5 - norm.y + 0.5;
 		}
 
-		vec2 atlas_uv = norm.xy * clamp_rect.zw + clamp_rect.xy;
-		atlas_uv = clamp(atlas_uv, clamp_rect.xy, clamp_rect.xy + clamp_rect.zw);
+		vec2 atlas_uv = norm.xy;
 
 		highp vec4 reflection;
-		reflection.rgb = textureLod(reflection_atlas, atlas_uv, roughness * 5.0).rgb;
+		reflection.rgb = n == 0
+			? textureLod(reflection_1, atlas_uv, roughness * 5.0).rgb
+			: textureLod(reflection_2, atlas_uv, roughness * 5.0).rgb;
 
 		if (reflections[idx].params.z < 0.5) {
 			reflection.rgb = mix(skybox, reflection.rgb, blend);
@@ -1399,12 +1403,10 @@ void reflection_process(int idx, vec3 vertex, vec3 normal, vec3 binormal, vec3 t
 		vec3 local_amb_vec = (reflections[idx].local_matrix * vec4(normal, 0.0)).xyz;
 
 		vec3 splane = normalize(local_amb_vec);
-		vec4 clamp_rect = reflections[idx].atlas_clamp;
 
 		splane.z *= -1.0;
 		if (splane.z >= 0.0) {
 			splane.z += 1.0;
-			clamp_rect.y += clamp_rect.w;
 		} else {
 			splane.z = 1.0 - splane.z;
 			splane.y = -splane.y;
@@ -1413,12 +1415,11 @@ void reflection_process(int idx, vec3 vertex, vec3 normal, vec3 binormal, vec3 t
 		splane.xy /= splane.z;
 		splane.xy = splane.xy * 0.5 + 0.5;
 
-		splane.xy = splane.xy * clamp_rect.zw + clamp_rect.xy;
-		splane.xy = clamp(splane.xy, clamp_rect.xy, clamp_rect.xy + clamp_rect.zw);
-
 		highp vec4 ambient_out;
 		ambient_out.a = blend;
-		ambient_out.rgb = textureLod(reflection_atlas, splane.xy, 5.0).rgb;
+		ambient_out.rgb = n == 0
+			? textureLod(reflection_1, splane.xy, 5.0).rgb
+			: textureLod(reflection_2, splane.xy, 5.0).rgb;
 		ambient_out.rgb = mix(reflections[idx].ambient.rgb, ambient_out.rgb, reflections[idx].ambient.a);
 		if (reflections[idx].params.z < 0.5) {
 			ambient_out.rgb = mix(ambient, ambient_out.rgb, blend);
@@ -1439,13 +1440,14 @@ void reflection_process(int idx, vec3 vertex, vec3 normal, vec3 binormal, vec3 t
 	}
 #endif
 }
+#endif
 
 #ifdef USE_LIGHTMAP
 #ifdef USE_LIGHTMAP_LAYERED
-uniform mediump sampler2DArray lightmap; //texunit:-9
+uniform mediump sampler2DArray lightmap; //texunit:-10
 uniform int lightmap_layer;
 #else
-uniform mediump sampler2D lightmap; //texunit:-9
+uniform mediump sampler2D lightmap; //texunit:-10
 #endif
 
 uniform mediump float lightmap_energy;
@@ -1554,7 +1556,7 @@ uniform bool lightmap_capture_sky;
 
 #ifdef USE_GI_PROBES
 
-uniform mediump sampler3D gi_probe1; //texunit:-9
+uniform mediump sampler3D gi_probe1; //texunit:-10
 uniform highp mat4 gi_probe_xform1;
 uniform highp vec3 gi_probe_bounds1;
 uniform highp vec3 gi_probe_cell_size1;
@@ -1563,7 +1565,7 @@ uniform highp float gi_probe_bias1;
 uniform highp float gi_probe_normal_bias1;
 uniform bool gi_probe_blend_ambient1;
 
-uniform mediump sampler3D gi_probe2; //texunit:-10
+uniform mediump sampler3D gi_probe2; //texunit:-11
 uniform highp mat4 gi_probe_xform2;
 uniform highp vec3 gi_probe_bounds2;
 uniform highp vec3 gi_probe_cell_size2;
@@ -1977,7 +1979,7 @@ FRAGMENT_SHADER_CODE
 	highp vec4 reflection_accum = vec4(0.0, 0.0, 0.0, 0.0);
 	highp vec4 ambient_accum = vec4(0.0, 0.0, 0.0, 0.0);
 	for (int i = 0; i < reflection_count; i++) {
-		reflection_process(reflection_indices[i], vertex, normal, binormal, tangent, roughness, anisotropy, ambient_light, env_reflection_light, reflection_accum, ambient_accum);
+		reflection_process(i, vertex, normal, binormal, tangent, roughness, anisotropy, ambient_light, env_reflection_light, reflection_accum, ambient_accum);
 	}
 
 	if (reflection_accum.a > 0.0) {

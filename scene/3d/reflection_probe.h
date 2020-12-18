@@ -39,12 +39,6 @@
 class ReflectionProbe : public VisualInstance {
 	GDCLASS(ReflectionProbe, VisualInstance);
 
-public:
-	enum UpdateMode {
-		UPDATE_ONCE,
-		UPDATE_ALWAYS,
-	};
-
 private:
 	RID probe;
 	float intensity;
@@ -59,7 +53,9 @@ private:
 	float interior_ambient_probe_contribution;
 
 	uint32_t cull_mask;
-	UpdateMode update_mode;
+
+	int resolution;
+	Ref<Texture> bake_texture;
 
 protected:
 	static void _bind_methods();
@@ -99,8 +95,21 @@ public:
 	void set_cull_mask(uint32_t p_layers);
 	uint32_t get_cull_mask() const;
 
-	void set_update_mode(UpdateMode p_mode);
-	UpdateMode get_update_mode() const;
+	void set_resolution(int p_resolution);
+	int get_resolution() const;
+
+	void set_bake_texture(const Ref<Texture> &p_texture);
+	Ref<Texture> get_bake_texture() const;
+
+#ifdef TOOLS_ENABLED
+	enum BakeError {
+		BAKE_ERROR_OK,
+		BAKE_ERROR_NO_SAVE_PATH,
+		BAKE_ERROR_CANT_WRITE_FiLES,
+	};
+
+	BakeError bake_reflections();
+#endif
 
 	virtual AABB get_aabb() const;
 	virtual PoolVector<Face3> get_faces(uint32_t p_usage_flags) const;
@@ -108,7 +117,5 @@ public:
 	ReflectionProbe();
 	~ReflectionProbe();
 };
-
-VARIANT_ENUM_CAST(ReflectionProbe::UpdateMode);
 
 #endif // REFLECTIONPROBE_H
