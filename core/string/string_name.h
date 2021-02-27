@@ -34,6 +34,7 @@
 #include "core/os/mutex.h"
 #include "core/string/ustring.h"
 #include "core/templates/safe_refcount.h"
+#include "core/templates/static_wrapper.h"
 
 class Main;
 
@@ -75,7 +76,7 @@ class StringName {
 	friend void register_core_types();
 	friend void unregister_core_types();
 	friend class Main;
-	static Mutex mutex;
+	static StaticWrapper<Mutex> mutex;
 	static void setup();
 	static void cleanup();
 	static bool configured;

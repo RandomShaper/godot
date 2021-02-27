@@ -46,7 +46,7 @@ StringName _scs_create(const char *p_chr) {
 }
 
 bool StringName::configured = false;
-Mutex StringName::mutex;
+StaticWrapper<Mutex> StringName::mutex;
 
 void StringName::setup() {
 	ERR_FAIL_COND(configured);
@@ -57,7 +57,7 @@ void StringName::setup() {
 }
 
 void StringName::cleanup() {
-	MutexLock lock(mutex);
+	mutex->lock();
 
 	int lost_strings = 0;
 	for (int i = 0; i < STRING_TABLE_LEN; i++) {
@@ -79,13 +79,16 @@ void StringName::cleanup() {
 	if (lost_strings) {
 		print_verbose("StringName: " + itos(lost_strings) + " unclaimed string names at exit.");
 	}
+
+	mutex->unlock();
+	mutex.destroy();
 }
 
 void StringName::unref() {
 	ERR_FAIL_COND(!configured);
 
 	if (_data && _data->refcount.unref()) {
-		MutexLock lock(mutex);
+		MutexLock lock(*mutex);
 
 		if (_data->prev) {
 			_data->prev->next = _data->next;
@@ -162,7 +165,7 @@ StringName::StringName(const char *p_name) {
 		return; //empty, ignore
 	}
 
-	MutexLock lock(mutex);
+	MutexLock lock(*mutex);
 
 	uint32_t hash = String::hash(p_name);
 
@@ -206,7 +209,7 @@ StringName::StringName(const StaticCString &p_static_string) {
 
 	ERR_FAIL_COND(!p_static_string.ptr || !p_static_string.ptr[0]);
 
-	MutexLock lock(mutex);
+	MutexLock lock(*mutex);
 
 	uint32_t hash = String::hash(p_static_string.ptr);
 
@@ -252,7 +255,7 @@ StringName::StringName(const String &p_name) {
 		return;
 	}
 
-	MutexLock lock(mutex);
+	MutexLock lock(*mutex);
 
 	uint32_t hash = p_name.hash();
 	uint32_t idx = hash & STRING_TABLE_MASK;
@@ -295,7 +298,7 @@ StringName StringName::search(const char *p_name) {
 		return StringName();
 	}
 
-	MutexLock lock(mutex);
+	MutexLock lock(*mutex);
 
 	uint32_t hash = String::hash(p_name);
 	uint32_t idx = hash & STRING_TABLE_MASK;
@@ -325,7 +328,7 @@ StringName StringName::search(const char32_t *p_name) {
 		return StringName();
 	}
 
-	MutexLock lock(mutex);
+	MutexLock lock(*mutex);
 
 	uint32_t hash = String::hash(p_name);
 
@@ -351,7 +354,7 @@ StringName StringName::search(const char32_t *p_name) {
 StringName StringName::search(const String &p_name) {
 	ERR_FAIL_COND_V(p_name == "", StringName());
 
-	MutexLock lock(mutex);
+	MutexLock lock(*mutex);
 
 	uint32_t hash = p_name.hash();
 
