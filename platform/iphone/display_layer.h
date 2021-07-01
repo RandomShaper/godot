@@ -28,7 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#import <OpenGLES/EAGLDrawable.h>
+#include "thirdparty/metalangle/ios/MetalANGLE.framework/Headers/MGLLayer.h"
 #import <QuartzCore/QuartzCore.h>
 
 @protocol DisplayLayer <NSObject>
@@ -40,6 +40,6 @@
 
 @end
 
-@interface GodotOpenGLLayer : CAEAGLLayer <DisplayLayer>
+@interface GodotOpenGLLayer : MGLLayer <DisplayLayer>
 
 @end

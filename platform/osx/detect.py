@@ -174,10 +174,6 @@ def configure(env):
             "-framework",
             "Carbon",
             "-framework",
-            "OpenGL",
-            "-framework",
-            "AGL",
-            "-framework",
             "AudioUnit",
             "-framework",
             "CoreAudio",
@@ -197,3 +193,7 @@ def configure(env):
         ]
     )
     env.Append(LIBS=["pthread"])
+
+    #env.Append(CPPFLAGS=["-isystem", "thirdparty/metalangle/mac/MetalANGLE.framework/Versions/A/Headers"]) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    env.Append(LINKFLAGS=["-Fthirdparty/metalangle/mac", "-framework", "MetalANGLE"])
+    env.Append(CPPDEFINES=["HAVE_METALANGLE"])

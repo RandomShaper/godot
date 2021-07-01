@@ -182,10 +182,13 @@ def configure(env):
     env.Prepend(
         CPPPATH=[
             "$IPHONESDK/usr/include",
-            "$IPHONESDK/System/Library/Frameworks/OpenGLES.framework/Headers",
             "$IPHONESDK/System/Library/Frameworks/AudioUnit.framework/Headers",
         ]
     )
+
+    #env.Append(CPPFLAGS=["-isystem", "thirdparty/metalangle/ios/MetalANGLE.framework/Headers"]) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    env.Append(LINKFLAGS=["-Fthirdparty/metalangle/ios", "-framework", "MetalANGLE"])
+    env.Append(CPPDEFINES=["HAVE_METALANGLE"])
 
     env["ENV"]["CODESIGN_ALLOCATE"] = "/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate"
 

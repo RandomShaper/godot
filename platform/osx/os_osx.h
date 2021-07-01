@@ -54,6 +54,8 @@
 #undef BitMap
 #undef CursorShape
 
+@class MGLContext;
+
 class OS_OSX : public OS_Unix {
 public:
 	struct KeyEvent {
@@ -113,8 +115,7 @@ public:
 	id window_view;
 	id autoreleasePool;
 	id cursor;
-	NSOpenGLPixelFormat *pixelFormat;
-	NSOpenGLContext *context;
+	MGLContext *context;
 
 	Vector<Vector2> mpath;
 	bool layered_window;

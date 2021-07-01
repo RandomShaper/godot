@@ -39,6 +39,7 @@
 #include "drivers/gles3/rasterizer_gles3.h"
 #include "main/main.h"
 #include "servers/visual/visual_server_raster.h"
+#include "thirdparty/metalangle/mac/MetalANGLE.framework/Versions/A/Headers/MGLKView.h"
 
 #include <mach-o/dyld.h>
 
@@ -350,14 +351,6 @@ static NSCursor *cursorFromSelector(SEL selector, SEL fallback = nil) {
 		OS_OSX::singleton->window_size.width = fbRect.size.width * newDisplayScale;
 		OS_OSX::singleton->window_size.height = fbRect.size.height * newDisplayScale;
 
-		if (OS_OSX::singleton->context) {
-			GLint dim[2];
-			dim[0] = OS_OSX::singleton->window_size.width;
-			dim[1] = OS_OSX::singleton->window_size.height;
-			CGLSetParameter((CGLContextObj)[OS_OSX::singleton->context CGLContextObj], kCGLCPSurfaceBackingSize, &dim[0]);
-			CGLEnable((CGLContextObj)[OS_OSX::singleton->context CGLContextObj], kCGLCESurfaceBackingSize);
-		}
-
 		//Update context
 		if (OS_OSX::singleton->main_loop) {
 			//Force window resize event
@@ -455,7 +448,7 @@ static NSCursor *cursorFromSelector(SEL selector, SEL fallback = nil) {
 
 @end
 
-@interface GodotContentView : NSOpenGLView <NSTextInputClient> {
+@interface GodotContentView : MGLKView <NSTextInputClient> {
 	NSTrackingArea *trackingArea;
 	NSMutableAttributedString *markedText;
 	bool imeInputEventInProgress;
@@ -1663,7 +1656,7 @@ Error OS_OSX::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 	pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attributes];
 	ERR_FAIL_COND_V(pixelFormat == nil, ERR_UNAVAILABLE);
 
-	context = [[NSOpenGLContext alloc] initWithFormat:pixelFormat shareContext:nil];
+	context = [[MGLContext alloc] initWithFormat:pixelFormat shareContext:nil];
 
 	ERR_FAIL_COND_V(context == nil, ERR_UNAVAILABLE);
 
@@ -2373,7 +2366,7 @@ String OS_OSX::get_clipboard() const {
 }
 
 void OS_OSX::release_rendering_thread() {
-	[NSOpenGLContext clearCurrentContext];
+	[MGLContext clearCurrentContext];
 }
 
 void OS_OSX::make_rendering_thread() {
@@ -2870,14 +2863,14 @@ void OS_OSX::set_window_per_pixel_transparency_enabled(bool p_enabled) {
 			[window_object setBackgroundColor:[NSColor clearColor]];
 			[window_object setOpaque:NO];
 			[window_object setHasShadow:NO];
-			[context setValues:&opacity forParameter:NSOpenGLContextParameterSurfaceOpacity];
+			[context setValues:&opacity forParameter:MGLContextParameterSurfaceOpacity];
 			layered_window = true;
 		} else {
 			GLint opacity = 1;
 			[window_object setBackgroundColor:[NSColor colorWithCalibratedWhite:1 alpha:1]];
 			[window_object setOpaque:YES];
 			[window_object setHasShadow:YES];
-			[context setValues:&opacity forParameter:NSOpenGLContextParameterSurfaceOpacity];
+			[context setValues:&opacity forParameter:MGLContextParameterSurfaceOpacity];
 			layered_window = false;
 		}
 		[context update];
