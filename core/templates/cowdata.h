@@ -46,18 +46,17 @@ class CharString;
 template <class T, class V>
 class VMap;
 
-SAFE_NUMERIC_TYPE_PUN_GUARANTEES(uint32_t)
-
 struct CowDataPrefix {
 	SafeNumeric<uint32_t> refcount;
 	int capacity;
 	int size;
 };
+static_assert(std::is_trivially_destructible<CowDataPrefix>::value, "");
 
 #define ERR_PROPAGATE(m_expr) \
 	if (true) {               \
 		Error err = m_expr;   \
-		if (err) {            \
+		if (unlikely(err)) {  \
 			return err;       \
 		}                     \
 	} else                    \
@@ -76,18 +75,21 @@ class CowData {
 private:
 	mutable T *_ptr = nullptr;
 
+	// The values below are modeled as functions instead of constants
+	// because otherwise compilation would fail in cases where T is
+	// forward-declared (and therefore of unknown size and alignment).
+
 	// Offset in bytes from the start of the prefix to the start of the first element.
 	static constexpr size_t prefix_offset() {
-		// This is the size of the prefix, rounded up to the next multiple of the alignment of T.
-		// This ensures that the elements are correctly aligned as long as
-		// Memory::alloc_static returns a correctly aligned pointer.
-		return sizeof(CowDataPrefix) + (alignof(T) - sizeof(CowDataPrefix) % alignof(T)) % alignof(T);
+		return ALIGN(sizeof(CowDataPrefix), alignof(T));
 	}
 
-	// Maximum number of elements, ensuring that they can be allocated and that
-	// there is a bit of space in int for the index.
+	// Maximum number of elements, so that:
+	// - Can be allocated (not bigger than half the address space).
+	// - Indices stay within the range of signed integers.
+	// - There's space for the allocator pre-padding and the prefix.
 	static constexpr int max_size() {
-		return MIN((SIZE_MAX - 64 - prefix_offset()) / sizeof(T), (size_t)0x7ffffff0);
+		return MIN((size_t)INT_MAX, (((SIZE_MAX >> 1) - PAD_ALIGN - prefix_offset()) / sizeof(T)));
 	}
 
 	// Minimum capacity to allocate.
@@ -168,7 +170,7 @@ public:
 
 		int len = size();
 
-		if (len == p_index + 1) {
+		if (unlikely(len == p_index + 1)) {
 			// Remove the last element by simply resizing.
 			return resize(len - 1);
 		}
@@ -241,7 +243,7 @@ template <class T>
 Error CowData<T>::_copy_on_write() {
 	CowDataPrefix *prefix = _get_prefix();
 
-	if (!prefix) {
+	if (unlikely(!prefix)) {
 		return OK;
 	}
 
@@ -319,27 +321,16 @@ Error CowData<T>::_reserve(int p_capacity) {
 
 	CowDataPrefix *prefix = _get_prefix();
 
-	if (!prefix) {
+	if (unlikely(!prefix)) {
 		return _copy_from(nullptr, 0, MAX(min_capacity(), p_capacity));
 	}
 
-	int capacity = prefix->capacity;
-
-	if (capacity >= p_capacity) {
+	if (likely(prefix->capacity >= p_capacity)) {
 		return OK;
 	}
 
-	capacity *= 2;
-
-	if (capacity < p_capacity) {
-		capacity = p_capacity;
-	}
-
-	if (capacity > max_size()) {
-		capacity = max_size();
-	}
-
-	return _copy_from(prefix, prefix->size, capacity);
+	int new_capacity = CLAMP(prefix->capacity * 2, p_capacity, max_size());
+	return _copy_from(prefix, prefix->size, new_capacity);
 }
 
 // Returns true, if the backing memory should be trimmed when reducing to the
@@ -348,24 +339,22 @@ Error CowData<T>::_reserve(int p_capacity) {
 template <class T>
 bool CowData<T>::_trim_capacity(int p_size, int &r_capacity) {
 	CowDataPrefix *prefix = _get_prefix();
-	if (!prefix) {
+	if (unlikely(!prefix)) {
 		r_capacity = 0;
 		return false;
 	}
 
-	int capacity = prefix->capacity;
+	int new_capacity = prefix->capacity;
 
-	while (p_size < capacity / 4 && capacity > min_capacity()) {
-		capacity /= 2;
+	while (p_size < new_capacity / 4 && new_capacity > min_capacity()) {
+		new_capacity /= 2;
 	}
 
-	if (capacity < min_capacity()) {
-		capacity = min_capacity();
-	}
+	new_capacity = MAX(new_capacity, min_capacity());
 
-	r_capacity = capacity;
+	r_capacity = new_capacity;
 
-	return capacity != prefix->capacity;
+	return new_capacity != prefix->capacity;
 }
 
 template <class T>
@@ -376,7 +365,7 @@ Error CowData<T>::resize(int p_size) {
 	CowDataPrefix *prefix = _get_prefix();
 
 	// Clean up the referenced memory when resizing to zero.
-	if (p_size == 0) {
+	if (unlikely(p_size == 0)) {
 		_unref(prefix);
 		_ptr = nullptr;
 		return OK;
@@ -384,7 +373,7 @@ Error CowData<T>::resize(int p_size) {
 
 	int current_size = prefix ? prefix->size : 0;
 
-	if (p_size == current_size) {
+	if (unlikely(p_size == current_size)) {
 		return OK;
 	}
 
@@ -406,8 +395,9 @@ Error CowData<T>::resize(int p_size) {
 
 		prefix->size = p_size;
 		return OK;
+	} else {
+		DEV_ASSERT(p_size < current_size);
 
-	} else if (p_size < current_size) {
 		int capacity = 0;
 
 		if (_trim_capacity(p_size, capacity) || prefix->refcount.get() > 1) {
@@ -425,7 +415,6 @@ Error CowData<T>::resize(int p_size) {
 			return OK;
 		}
 	}
-	return OK;
 }
 
 template <class T>
