@@ -34,6 +34,15 @@
 #include "core/templates/hash_map.h"
 #include "servers/rendering/rendering_device_driver.h"
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
+#pragma GCC diagnostic ignored "-Wshadow"
+#pragma GCC diagnostic ignored "-Wswitch"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+
 #include "d3dx12.h"
 #include <dxgi1_6.h>
 #define D3D12MA_D3D12_HEADERS_ALREADY_INCLUDED
@@ -41,9 +50,13 @@
 
 #include <wrl/client.h>
 
+#if defined(_MSC_VER) && defined(MemoryBarrier)
 // Annoying define from winnt.h. Reintroduced by some of the headers above.
-#ifdef MemoryBarrier
 #undef MemoryBarrier
+#endif
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
 #endif
 
 using Microsoft::WRL::ComPtr;
@@ -285,11 +298,11 @@ public:
 
 	virtual void command_pipeline_barrier(
 			CommandBufferID p_cmd_buffer,
-			BitField<PipelineStageBits> p_src_stages,
-			BitField<PipelineStageBits> p_dst_stages,
-			VectorView<MemoryBarrier> p_memory_barriers,
-			VectorView<BufferBarrier> p_buffer_barriers,
-			VectorView<TextureBarrier> p_texture_barriers) override final;
+			BitField<RDD::PipelineStageBits> p_src_stages,
+			BitField<RDD::PipelineStageBits> p_dst_stages,
+			VectorView<RDD::MemoryBarrier> p_memory_barriers,
+			VectorView<RDD::BufferBarrier> p_buffer_barriers,
+			VectorView<RDD::TextureBarrier> p_texture_barriers) override final;
 
 	/*************************/
 	/**** COMMAND BUFFERS ****/

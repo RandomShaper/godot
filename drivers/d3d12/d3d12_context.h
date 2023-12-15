@@ -39,10 +39,28 @@
 #include "servers/display_server.h"
 #include "servers/rendering/renderer_rd/api_context_rd.h"
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
+#pragma GCC diagnostic ignored "-Wshadow"
+#pragma GCC diagnostic ignored "-Wswitch"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+
+#if defined(AS)
+#undef AS
+#endif
+
 #include "d3dx12.h"
 #include <dxgi1_6.h>
 
 #include <wrl/client.h>
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 using Microsoft::WRL::ComPtr;
 
 class D3D12Context : public ApiContextRD {
