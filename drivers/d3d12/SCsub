@@ -5,7 +5,9 @@ from pathlib import Path
 
 Import("env")
 
-env_d3d12_rd = env.Clone()
+env.Append(CPPDEFINES=["RD_ENABLED"])
+
+env_d3d12_rdd = env.Clone()
 
 thirdparty_obj = []
 
@@ -13,28 +15,28 @@ thirdparty_obj = []
 # DirectX Headers (must take precedence over Windows SDK's).
 
 env.Prepend(CPPPATH=["#thirdparty/directx_headers"])
-env_d3d12_rd.Prepend(CPPPATH=["#thirdparty/directx_headers"])
+env_d3d12_rdd.Prepend(CPPPATH=["#thirdparty/directx_headers"])
 
 
 # Direct3D 12 Memory Allocator.
 
 env.Append(CPPPATH=["#thirdparty/d3d12ma"])
-env_d3d12_rd.Append(CPPPATH=["#thirdparty/d3d12ma"])
+env_d3d12_rdd.Append(CPPPATH=["#thirdparty/d3d12ma"])
 
 
 # Agility SDK.
 
 if env["agility_sdk_path"] != "":
-    env_d3d12_rd.Append(CPPDEFINES=["AGILITY_SDK_ENABLED"])
+    env_d3d12_rdd.Append(CPPDEFINES=["AGILITY_SDK_ENABLED"])
     if env["agility_sdk_multiarch"]:
-        env_d3d12_rd.Append(CPPDEFINES=["AGILITY_SDK_MULTIARCH_ENABLED"])
+        env_d3d12_rdd.Append(CPPDEFINES=["AGILITY_SDK_MULTIARCH_ENABLED"])
 
 
 # PIX.
 
 if env["pix_path"] != "":
-    env_d3d12_rd.Append(CPPDEFINES=["PIX_ENABLED"])
-    env_d3d12_rd.Append(CPPPATH=[env["pix_path"] + "/Include"])
+    env_d3d12_rdd.Append(CPPDEFINES=["PIX_ENABLED"])
+    env_d3d12_rdd.Append(CPPPATH=[env["pix_path"] + "/Include"])
 
 
 # Mesa (SPIR-V to DXIL functionality).
@@ -131,9 +133,9 @@ if env.msvc:
     ]
 
 # This is needed since rendering_device_d3d12.cpp needs to include some Mesa internals.
-env_d3d12_rd.Prepend(CPPPATH=mesa_private_inc_paths)
+env_d3d12_rdd.Prepend(CPPPATH=mesa_private_inc_paths)
 # For the same reason as above, the defines must be the same as in the 3rd-party code itself.
-env_d3d12_rd.Append(CPPDEFINES=extra_defines)
+env_d3d12_rdd.Append(CPPDEFINES=extra_defines)
 
 
 # Add all.
@@ -144,7 +146,7 @@ env.drivers_sources += thirdparty_obj
 # Godot source files.
 
 driver_obj = []
-env_d3d12_rd.add_source_files(driver_obj, "*.cpp")
+env_d3d12_rdd.add_source_files(driver_obj, "*.cpp")
 env.drivers_sources += driver_obj
 
 # Needed to force rebuilding the driver files when the thirdparty code is updated.
