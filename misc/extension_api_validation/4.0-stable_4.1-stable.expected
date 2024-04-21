@@ -349,3 +349,11 @@ Validate extension JSON: Error: Hash changed for 'classes/EditorUndoRedoManager/
 Validate extension JSON: Error: Hash changed for 'classes/UndoRedo/methods/create_action', from 0AEC1BFC to E87757EB. This means that the function has changed and no compatibility function was provided.
 
 Added a optional parameters with default values. No adjustments should be necessary.
+
+
+GH-90993
+--------
+Validate extension JSON: Error: Field 'classes/RenderingDevice/methods/draw_list_begin/arguments/9': type changed value in new API, from "Array" to "int".
+
+The change to `int` actually happened from 4.2 to 4.3, but our current validation script doesn't handle well the case where an argument changed type twice in different versions.
+This argument already changed in 4.1 in GH-76418, so the script gets confused.
