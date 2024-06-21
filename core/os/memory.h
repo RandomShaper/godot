@@ -46,11 +46,16 @@ class Memory {
 
 	static SafeNumeric<uint64_t> alloc_count;
 
+	// p_alignment MUST be a power of 2.
+	static void *_alloc_static(size_t p_bytes, bool p_pad_align, size_t p_alignment);
+	static void *_realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align, size_t p_alignment);
+	static void _free_static(void *p_ptr, bool p_pad_align, bool p_is_aligned);
+
 public:
 	// Alignment:  ↓ max_align_t        ↓ uint64_t          ↓ max_align_t
 	//             ┌─────────────────┬──┬────────────────┬──┬───────────...
 	//             │ uint64_t        │░░│ uint64_t       │░░│ T[]
-	//             │ alloc size      │░░│ element count  │░░│ data
+	//             │ alloc size      │░░│ metadata       │░░│ data
 	//             └─────────────────┴──┴────────────────┴──┴───────────...
 	// Offset:     ↑ SIZE_OFFSET        ↑ ELEMENT_OFFSET    ↑ DATA_OFFSET
 
@@ -164,7 +169,7 @@ void memdelete_allocator(T *p_class) {
 
 #define memnew_arr(m_class, m_count) memnew_arr_template<m_class>(m_count)
 
-_FORCE_INLINE_ uint64_t *_get_element_count_ptr(uint8_t *p_ptr) {
+_FORCE_INLINE_ uint64_t *_get_metadata_ptr(uint8_t *p_ptr) {
 	return (uint64_t *)(p_ptr - Memory::DATA_OFFSET + Memory::ELEMENT_OFFSET);
 }
 
@@ -181,7 +186,7 @@ T *memnew_arr_template(size_t p_elements) {
 	T *failptr = nullptr; //get rid of a warning
 	ERR_FAIL_NULL_V(mem, failptr);
 
-	uint64_t *_elem_count_ptr = _get_element_count_ptr(mem);
+	uint64_t *_elem_count_ptr = _get_metadata_ptr(mem);
 	*(_elem_count_ptr) = p_elements;
 
 	if constexpr (!std::is_trivially_constructible_v<T>) {
@@ -204,7 +209,7 @@ T *memnew_arr_template(size_t p_elements) {
 template <typename T>
 size_t memarr_len(const T *p_class) {
 	uint8_t *ptr = (uint8_t *)p_class;
-	uint64_t *_elem_count_ptr = _get_element_count_ptr(ptr);
+	uint64_t *_elem_count_ptr = _get_metadata_ptr(ptr);
 	return *(_elem_count_ptr);
 }
 
@@ -213,7 +218,7 @@ void memdelete_arr(T *p_class) {
 	uint8_t *ptr = (uint8_t *)p_class;
 
 	if constexpr (!std::is_trivially_destructible_v<T>) {
-		uint64_t *_elem_count_ptr = _get_element_count_ptr(ptr);
+		uint64_t *_elem_count_ptr = _get_metadata_ptr(ptr);
 		uint64_t elem_count = *(_elem_count_ptr);
 
 		for (uint64_t i = 0; i < elem_count; i++) {

@@ -68,49 +68,23 @@ SafeNumeric<uint64_t> Memory::alloc_count;
 
 inline bool is_power_of_2(size_t x) { return x && ((x & (x - 1U)) == 0U); }
 
-void *Memory::alloc_aligned_static(size_t p_bytes, size_t p_alignment) {
-	DEV_ASSERT(is_power_of_2(p_alignment));
+void *Memory::_alloc_static(size_t p_bytes, bool p_pad_align, size_t p_alignment) {
+	DEV_ASSERT(p_alignment >= 1 && is_power_of_2(p_alignment));
 
-	void *p1, *p2;
-	if ((p1 = (void *)malloc(p_bytes + p_alignment - 1 + sizeof(uint32_t))) == nullptr) {
-		return nullptr;
-	}
-
-	p2 = (void *)(((uintptr_t)p1 + sizeof(uint32_t) + p_alignment - 1) & ~((p_alignment)-1));
-	*((uint32_t *)p2 - 1) = (uint32_t)((uintptr_t)p2 - (uintptr_t)p1);
-	return p2;
-}
-
-void *Memory::realloc_aligned_static(void *p_memory, size_t p_bytes, size_t p_prev_bytes, size_t p_alignment) {
-	if (p_memory == nullptr) {
-		return alloc_aligned_static(p_bytes, p_alignment);
-	}
-
-	void *ret = alloc_aligned_static(p_bytes, p_alignment);
-	memcpy(ret, p_memory, p_prev_bytes);
-	free_aligned_static(p_memory);
-	return ret;
-}
-
-void Memory::free_aligned_static(void *p_memory) {
-	uint32_t offset = *((uint32_t *)p_memory - 1);
-	void *p = (void *)((uint8_t *)p_memory - offset);
-	free(p);
-}
-
-void *Memory::alloc_static(size_t p_bytes, bool p_pad_align) {
 #ifdef DEBUG_ENABLED
 	bool prepad = true;
 #else
 	bool prepad = p_pad_align;
 #endif
 
-	void *mem = malloc(p_bytes + (prepad ? DATA_OFFSET : 0));
+	size_t extra_for_alignment = p_alignment > 1 ? (p_alignment - 1) + sizeof(uint32_t) : 0;
+	void *mem = malloc(p_bytes + (prepad ? DATA_OFFSET : 0) + extra_for_alignment);
 
 	ERR_FAIL_NULL_V(mem, nullptr);
 
 	alloc_count.increment();
 
+	void *unaligned = nullptr;
 	if (prepad) {
 		uint8_t *s8 = (uint8_t *)mem;
 
@@ -121,15 +95,25 @@ void *Memory::alloc_static(size_t p_bytes, bool p_pad_align) {
 		uint64_t new_mem_usage = mem_usage.add(p_bytes);
 		max_usage.exchange_if_greater(new_mem_usage);
 #endif
-		return s8 + DATA_OFFSET;
+
+		unaligned = s8 + DATA_OFFSET;
 	} else {
-		return mem;
+		unaligned = mem;
+	}
+
+	if (unlikely(p_alignment > 1)) {
+		void *aligned = (void *)(((uintptr_t)unaligned + (p_alignment - 1) + sizeof(uint32_t)) & ~((p_alignment)-1));
+		size_t alignment_offset = (uintptr_t)aligned - (uintptr_t)unaligned;
+		*(((uint32_t *)aligned) - 1) = alignment_offset;
+		return aligned;
+	} else {
+		return unaligned;
 	}
 }
 
-void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
+void *Memory::_realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align, size_t p_alignment) {
 	if (p_memory == nullptr) {
-		return alloc_static(p_bytes, p_pad_align);
+		return _alloc_static(p_bytes, p_pad_align, p_alignment);
 	}
 
 	uint8_t *mem = (uint8_t *)p_memory;
@@ -140,6 +124,15 @@ void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
 	bool prepad = p_pad_align;
 #endif
 
+	size_t extra_for_alignment = unlikely(p_alignment > 1) ? p_alignment - 1 + sizeof(uint32_t) : 0;
+
+	uint32_t old_alignment_offset = 0;
+	if (p_alignment > 1) {
+		old_alignment_offset = *(((uint32_t *)mem) - 1);
+		mem -= old_alignment_offset;
+	}
+
+	void *unaligned = nullptr;
 	if (prepad) {
 		mem -= DATA_OFFSET;
 		uint64_t *s = (uint64_t *)(mem + SIZE_OFFSET);
@@ -159,25 +152,42 @@ void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
 		} else {
 			*s = p_bytes;
 
-			mem = (uint8_t *)realloc(mem, p_bytes + DATA_OFFSET);
+			mem = (uint8_t *)realloc(mem, p_bytes + DATA_OFFSET + extra_for_alignment);
 			ERR_FAIL_NULL_V(mem, nullptr);
 
 			s = (uint64_t *)(mem + SIZE_OFFSET);
-
 			*s = p_bytes;
 
-			return mem + DATA_OFFSET;
+			unaligned = mem + DATA_OFFSET;
 		}
 	} else {
-		mem = (uint8_t *)realloc(mem, p_bytes);
+		mem = (uint8_t *)realloc(mem, p_bytes + extra_for_alignment);
 
 		ERR_FAIL_COND_V(mem == nullptr && p_bytes > 0, nullptr);
 
-		return mem;
+		unaligned = mem;
+	}
+
+	if (p_alignment > 1) {
+		void *aligned = (void *)(((uintptr_t)unaligned + (p_alignment - 1) + sizeof(uint32_t)) & ~((p_alignment)-1));
+		uint32_t new_alignment_offset = (uintptr_t)aligned - (uintptr_t)unaligned;
+		// Alignment offset can't have changed if the memory is the same.
+		DEV_ASSERT(!(new_alignment_offset != old_alignment_offset && unaligned == p_memory));
+		if (new_alignment_offset == old_alignment_offset) {
+			return aligned;
+		} else {
+			int32_t align_diff = (int32_t)new_alignment_offset - (int32_t)old_alignment_offset;
+			void *new_aligned = (void *)((uintptr_t)aligned + align_diff);
+			memmove(new_aligned, aligned, p_bytes);
+			*(((uint32_t *)new_aligned) - 1) = new_alignment_offset;
+			return new_aligned;
+		}
+	} else {
+		return unaligned;
 	}
 }
 
-void Memory::free_static(void *p_ptr, bool p_pad_align) {
+void Memory::_free_static(void *p_ptr, bool p_pad_align, bool p_is_aligned) {
 	ERR_FAIL_NULL(p_ptr);
 
 	uint8_t *mem = (uint8_t *)p_ptr;
@@ -190,6 +200,11 @@ void Memory::free_static(void *p_ptr, bool p_pad_align) {
 
 	alloc_count.decrement();
 
+	if (unlikely(p_is_aligned)) {
+		uint32_t alignment_offset = *(((uint32_t *)mem) - 1);
+		mem -= alignment_offset;
+	}
+
 	if (prepad) {
 		mem -= DATA_OFFSET;
 
@@ -197,11 +212,33 @@ void Memory::free_static(void *p_ptr, bool p_pad_align) {
 		uint64_t *s = (uint64_t *)(mem + SIZE_OFFSET);
 		mem_usage.sub(*s);
 #endif
-
-		free(mem);
-	} else {
-		free(mem);
 	}
+
+	free(mem);
+}
+
+void *Memory::alloc_static(size_t p_bytes, bool p_pad_align) {
+	return _alloc_static(p_bytes, p_pad_align, 1);
+}
+
+void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
+	return _realloc_static(p_memory, p_bytes, p_pad_align, 1);
+}
+
+void Memory::free_static(void *p_ptr, bool p_pad_align) {
+	return _free_static(p_ptr, p_pad_align, false);
+}
+
+void *Memory::alloc_aligned_static(size_t p_bytes, size_t p_alignment) {
+	return _alloc_static(p_bytes, true, p_alignment);
+}
+
+void *Memory::realloc_aligned_static(void *p_memory, size_t p_bytes, size_t p_prev_bytes, size_t p_alignment) {
+	return _realloc_static(p_memory, p_bytes, true, p_alignment);
+}
+
+void Memory::free_aligned_static(void *p_memory) {
+	return _free_static(p_memory, true, true);
 }
 
 uint64_t Memory::get_mem_available() {
