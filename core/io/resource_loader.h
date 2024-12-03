@@ -224,6 +224,7 @@ public:
 	static Ref<Resource> load_threaded_get(const String &p_path, Error *r_error = nullptr);
 
 	static bool is_within_load() { return load_nesting > 0; }
+	static void notify_subresource_parsed();
 
 	static void resource_changed_connect(Resource *p_source, const Callable &p_callable, uint32_t p_flags);
 	static void resource_changed_disconnect(Resource *p_source, const Callable &p_callable);

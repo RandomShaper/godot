@@ -146,11 +146,16 @@ public:
 
 	// Retrieve a pipeline. It'll return an empty pipeline if it's not available yet, but it'll be guaranteed to succeed if 'wait for compilation' is true and stall as necessary. Source is just an optional number to aid debugging.
 	RID get_pipeline(const Key &p_key, uint32_t p_key_hash, bool p_wait_for_compilation, RS::PipelineSource p_source) {
-		RBMap<uint32_t, RID>::Element *e = hash_map.find(p_key_hash);
+		RBMap<uint32_t, RID>::Element *e = nullptr;
+		{
+			MutexLock lock(compiled_queue_mutex);
+			e = hash_map.find(p_key_hash);
+		}
 
 		if (e == nullptr) {
 			// Check if there's any new pipelines that need to be added and try again. This method triggers a mutex lock.
 			if (_add_new_pipelines_to_map()) {
+				MutexLock lock(compiled_queue_mutex);
 				e = hash_map.find(p_key_hash);
 			}
 		}
@@ -170,13 +175,16 @@ public:
 
 				_add_new_pipelines_to_map();
 
-				e = hash_map.find(p_key_hash);
-				if (e != nullptr) {
-					return e->value();
-				} else {
-					// Pipeline could not be compiled due to an internal error. Store an empty RID so compilation is not attempted again.
-					hash_map[p_key_hash] = RID();
-					return RID();
+				{
+					MutexLock lock(compiled_queue_mutex);
+					e = hash_map.find(p_key_hash);
+					if (e != nullptr) {
+						return e->value();
+					} else {
+						// Pipeline could not be compiled due to an internal error. Store an empty RID so compilation is not attempted again.
+						hash_map[p_key_hash] = RID();
+						return RID();
+					}
 				}
 			} else {
 				return RID();

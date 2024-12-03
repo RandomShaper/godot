@@ -98,7 +98,6 @@ class ShaderMaterial : public Material {
 
 	mutable HashMap<StringName, StringName> remap_cache;
 	mutable HashMap<StringName, Variant> param_cache;
-	mutable Mutex material_rid_mutex;
 
 protected:
 	bool _set(const StringName &p_name, const Variant &p_value);
@@ -117,7 +116,7 @@ protected:
 	virtual bool _can_use_render_priority() const override;
 
 	void _shader_changed();
-	void _check_material_rid() const;
+	void _ensure_material_rid() const;
 
 public:
 	void set_shader(const Ref<Shader> &p_shader);
@@ -128,7 +127,6 @@ public:
 
 	virtual Shader::Mode get_shader_mode() const override;
 
-	virtual RID get_rid() const override;
 	virtual RID get_shader_rid() const override;
 
 	ShaderMaterial();
@@ -139,9 +137,6 @@ class StandardMaterial3D;
 
 class BaseMaterial3D : public Material {
 	GDCLASS(BaseMaterial3D, Material);
-
-private:
-	mutable Mutex material_rid_mutex;
 
 public:
 	enum TextureParam {
@@ -475,7 +470,7 @@ private:
 
 	void _update_shader();
 	_FORCE_INLINE_ void _queue_shader_change();
-	void _check_material_rid();
+	void _ensure_material_rid();
 	void _material_set_param(const StringName &p_name, const Variant &p_value);
 
 	bool orm;

@@ -427,6 +427,7 @@ void ShaderMaterial::set_shader(const Ref<Shader> &p_shader) {
 		}
 	}
 
+	_ensure_material_rid();
 	RID material_rid = _get_material();
 	if (material_rid.is_valid()) {
 		RS::get_singleton()->material_set_shader(material_rid, rid);
@@ -486,8 +487,7 @@ void ShaderMaterial::_shader_changed() {
 	notify_property_list_changed(); //update all properties
 }
 
-void ShaderMaterial::_check_material_rid() const {
-	MutexLock lock(material_rid_mutex);
+void ShaderMaterial::_ensure_material_rid() const {
 	if (_get_material().is_null()) {
 		RID shader_rid = shader.is_valid() ? shader->get_rid() : RID();
 		RID next_pass_rid;
@@ -551,11 +551,6 @@ Shader::Mode ShaderMaterial::get_shader_mode() const {
 	} else {
 		return Shader::MODE_SPATIAL;
 	}
-}
-
-RID ShaderMaterial::get_rid() const {
-	_check_material_rid();
-	return Material::get_rid();
 }
 
 RID ShaderMaterial::get_shader_rid() const {
@@ -696,9 +691,8 @@ void BaseMaterial3D::_update_shader() {
 		shader_rid = shader_map[mk].shader;
 		shader_map[mk].users++;
 
-		if (_get_material().is_valid()) {
-			RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
-		}
+		_ensure_material_rid();
+		RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
 
 		return;
 	}
@@ -1933,13 +1927,11 @@ void fragment() {)";
 	shader_map[mk] = shader_data;
 	shader_rid = shader_data.shader;
 
-	if (_get_material().is_valid()) {
-		RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
-	}
+	_ensure_material_rid();
+	RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
 }
 
-void BaseMaterial3D::_check_material_rid() {
-	MutexLock lock(material_rid_mutex);
+void BaseMaterial3D::_ensure_material_rid() {
 	if (_get_material().is_null()) {
 		RID next_pass_rid;
 		if (get_next_pass().is_valid()) {
@@ -2931,7 +2923,6 @@ BaseMaterial3D::EmissionOperator BaseMaterial3D::get_emission_operator() const {
 }
 
 RID BaseMaterial3D::get_rid() const {
-	const_cast<BaseMaterial3D *>(this)->_check_material_rid();
 	return _get_material();
 }
 

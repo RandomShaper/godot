@@ -892,6 +892,12 @@ bool ResourceLoader::_ensure_load_progress() {
 	return true;
 }
 
+void ResourceLoader::notify_subresource_parsed() {
+	if (MessageQueue::get_singleton() != MessageQueue::get_main_singleton()) {
+		MessageQueue::get_singleton()->flush();
+	}
+}
+
 void ResourceLoader::resource_changed_connect(Resource *p_source, const Callable &p_callable, uint32_t p_flags) {
 	print_lt(vformat("%d\t%ud:%s\t" FUNCTION_STR "\t%d", Thread::get_caller_id(), p_source->get_instance_id(), p_source->get_class(), p_callable.get_object_id()));
 

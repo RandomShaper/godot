@@ -899,6 +899,8 @@ Error ResourceLoaderBinary::load() {
 			resource->set_as_translation_remapped(translation_remapped);
 			error = OK;
 			return OK;
+		} else {
+			ResourceLoader::notify_subresource_parsed();
 		}
 	}
 
