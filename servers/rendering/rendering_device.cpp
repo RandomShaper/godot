@@ -6237,13 +6237,6 @@ Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServ
 			pipeline_cache_file_path += ".editor";
 		}
 		pipeline_cache_file_path += ".cache";
-
-		Vector<uint8_t> cache_data = _load_pipeline_cache();
-		pipeline_cache_enabled = driver->pipeline_cache_create(cache_data);
-		if (pipeline_cache_enabled) {
-			pipeline_cache_size = driver->pipeline_cache_query_size();
-			print_verbose(vformat("Startup PSO cache (%.1f MiB)", pipeline_cache_size / (1024.0f * 1024.0f)));
-		}
 	}
 
 	return OK;

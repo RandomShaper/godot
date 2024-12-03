@@ -111,6 +111,7 @@ public:
 		if (compilations_mutex != nullptr) {
 			MutexLock compilations_lock(*compilations_mutex);
 			compilations[p_source]++;
+			print_line(vformat("%d\t%d\t%d\t%d\t%d", compilations[0], compilations[1], compilations[2], compilations[3], compilations[4]));
 		}
 
 #if PRINT_PIPELINE_COMPILATION_KEYS
